@@ -18,7 +18,7 @@ namespace p = boost::python;
 
 class CacheSim {
 public:
-    CacheSim(uint64_t cache_size);
+    CacheSim(uint64_t cache_size, uint64_t _refresh_period);
 
 	virtual void reset();
 
@@ -66,6 +66,8 @@ public:
 	uint64_t byte_hits;
 	uint64_t byte_misses;
 
+	uint64_t refresh_period;
+
 protected:
 
     virtual void produce_new_cache_state(p::dict &request, p::list& eviction_features, p::list& admission_features) = 0;
@@ -80,6 +82,7 @@ protected:
 	multimap<double, uint64_t> ratings;
 	map<uint64_t, uint64_t> sizes;
 	map<uint64_t, double> latest_mark;
+	map<uint64_t, uint64_t> updates;
 
 	unordered_set<uint64_t> hits_set;
 	unordered_set<uint64_t> misses_set;

@@ -86,6 +86,8 @@ def generate_session_continious(
         predictions_adm,
         rows,
         algorithm_template,
+        featurer,
+        evc_model,
         eviction_deterministic=False,
         admission_deterministic=False,
         collect_eviction=True,
@@ -116,16 +118,10 @@ def generate_session_continious(
         reward_total += multiplier * metric_funct(rows[i]['size'], 1)
         multiplier *= gamma
 
-        if i > len(rows) / 2:
-            eviction_deterministic = True
-            admission_deterministic = True
-            algorithm.deterministic_eviction = eviction_deterministic
-            algorithm.deterministic_admission = admission_deterministic
-
         if collect_eviction and not eviction_deterministic and algorithm.prediction_updated_eviction:
             lstates.append(i)
             lactions.append(algorithm.latest_prediction_answer_eviction)
-        if i < len(rows) / 2 and collect_admission and not admission_deterministic and algorithm.prediction_updated_admission:
+        if collect_admission and not admission_deterministic and algorithm.prediction_updated_admission:
             lstates_adm.append(i)
             lactions_adm.append(algorithm.latest_prediction_answer_admission)
 
@@ -170,7 +166,7 @@ class GameEnvironment:
         dropout_rate = 0.0
 
         multiplier_common = 20
-        multiplier_each = 100
+        multiplier_each = 10
         layers_common = 3
         layers_each = 3
 
@@ -179,17 +175,16 @@ class GameEnvironment:
         self.cm = common_model = Sequential()
         common_model.add(l.Dense(self.featurer.dim * multiplier_common, input_shape=(2 * self.featurer.dim,),
                                  activation='elu'))
-        common_model.add(l.BatchNormalization())
         for _ in range(layers_common):
             common_model.add(l.Dropout(dropout_rate))
             common_model.add(l.Dense(self.featurer.dim * multiplier_common, activation='elu'))
 
         self.model = Sequential()
+        #self.model.add(l.BatchNormalization(input_shape=(2 * self.featurer.dim,)))
         self.model.add(l.Dense(self.featurer.dim * multiplier_each, input_shape=(2 * self.featurer.dim,),
                                activation='elu'))
+        #self.model.add(l.BatchNormalization())
         #self.model.add(common_model)
-        self.model.add(l.BatchNormalization())
-
         for i in range(layers_each):
             self.model.add(l.Dropout(dropout_rate))
             self.model.add(l.Dense(self.featurer.dim * int(multiplier_each * (layers_each - i) / layers_each),
@@ -205,9 +200,10 @@ class GameEnvironment:
 
         self.model_admission = Sequential()
 
+        #self.model_admission.add(l.BatchNormalization(input_shape=(2 * self.featurer.dim,)))
         self.model_admission.add(l.Dense(self.featurer.dim * multiplier_each, input_shape=(2 * self.featurer.dim,),
                                          activation='elu'))
-        self.model_admission.add(l.BatchNormalization())
+        #self.model_admission.add(l.BatchNormalization())
         #self.model_admission.add(common_model)
         for i in range(layers_each):
             self.model_admission.add(l.Dropout(dropout_rate))
@@ -219,8 +215,6 @@ class GameEnvironment:
         self.adm_optimizezr = Adam(lr=1e-4)
 
         self.model_admission.compile(self.adm_optimizezr, loss='binary_crossentropy', metrics=['accuracy'])
-
-        self.model_admission.summary()
 
     @staticmethod
     def collect_features(ofname, t_max, filenames, skip, pure=None, verbose=True):
@@ -640,8 +634,8 @@ class GameEnvironment:
 
             refresh_val = period / 10000
 
-            algorithm.refresh_period = 3#max(0, refresh_val - 1 - (refresh_val * iteration) / iterations)
-            det_algorithm.refresh_period = 3#max(0, refresh_val - 1 - (refresh_val * iteration) / iterations)
+            algorithm.refresh_period = 10#max(0, refresh_val - 1 - (refresh_val * iteration) / iterations)
+            det_algorithm.refresh_period = 10#max(0, refresh_val - 1 - (refresh_val * iteration) / iterations)
 
             algorithms_classic = {'GDSF': GDSFSimulator(self.cache_size),
                                   'LRU': LRUSimulator(self.cache_size),
@@ -660,7 +654,7 @@ class GameEnvironment:
             train_admission = False#iteration % 2 == 1
             train_eviction = True#iteration % 2 == 0
 
-            step = period / 2
+            step = 3 * period / 4
             save_rows = period - step
 
             feature_set = None
@@ -764,14 +758,14 @@ class GameEnvironment:
                                        'LRU': predictions_cls,
                                        'Oracle': predictions_cls}
 
-                bool_array = [[train_eviction and not evc_classical, train_admission and not adm_classical]] * 2
+                bool_array = [[train_eviction and not evc_classical, train_admission and not adm_classical]] * 1
 
                 states_adm, actions_adm, rewards_adm = [], [], []
                 states, actions, rewards = [], [], []
 
                 repetitions = len(bool_array)
 
-                drop = True
+                drop = False
 
                 amlc = {}
                 for key in algorithms_ml.keys():
@@ -883,8 +877,8 @@ class GameEnvironment:
                                                                                    rewards,
                                                                                    percentile_value,
                                                                                    return_indexing=True)
-                        #if local_train_admission:
-                         #   self.cm.trainable = False
+                        if local_train_admission:
+                            self.cm.trainable = False
 
                         if len(elite_actions) <= 100000:
                             indicies = range(len(elite_actions))
@@ -909,8 +903,8 @@ class GameEnvironment:
 
                         print 'Eviction accuracy :', 100 * np.mean(evc_acc_history)
 
-                        #if local_train_admission:
-                         #   self.cm.trainable = True
+                        if local_train_admission:
+                            self.cm.trainable = True
 
                         self.model.save_weights('models/evc_' + self.ofname)# + '_' + str(iteration))
 

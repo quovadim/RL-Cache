@@ -1,25 +1,25 @@
-#include "GDSFSim.h"
+#include "OracleSim.h"
 
-GDSFSimulator::GDSFSimulator(uint64_t _cache_size) :
+OracleSimulator::OracleSimulator(uint64_t _cache_size) :
     CacheSim(_cache_size, 0)
 {}
 
-double GDSFSimulator::predict_eviction(p::list& eviction_features) {
+double OracleSimulator::predict_eviction(p::list& eviction_features) {
 	prediction_updated_eviction = true;
 	return vector<double>(to_std_vector<double>(eviction_features))[0];
 }
 
-bool GDSFSimulator::predict_admission(p::list& admission_features) {
+bool OracleSimulator::predict_admission(p::list& admission_features) {
 	prediction_updated_admission = true;
-	return to_std_vector<double>(admission_features)[2] > 0.5;
+	return to_std_vector<double>(admission_features)[3] > 2;
 }
 
-void GDSFSimulator::produce_new_cache_state(p::dict &request, p::list& eviction_features, p::list& admission_features) {
+void OracleSimulator::produce_new_cache_state(p::dict &request, p::list& eviction_features, p::list& admission_features) {
 	uint64_t size = p::extract<uint64_t>(request.get("size"));
 
-	//if (!(predict_admission(admission_features))) {
-    //    return;
-	//}
+	if (!(predict_admission(admission_features))) {
+        return;
+	}
 
 	double prediction = predict_eviction(eviction_features);
 	uint64_t id = p::extract<uint64_t>(request.get("id"));

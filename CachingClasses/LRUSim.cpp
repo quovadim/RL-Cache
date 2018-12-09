@@ -1,7 +1,7 @@
 #include "LRUSim.h"
 
 LRUSimulator::LRUSimulator(uint64_t _cache_size) :
-    CacheSim(_cache_size)
+    CacheSim(_cache_size, 0)
 {}
 
 double LRUSimulator::predict_eviction(p::list& eviction_features) {

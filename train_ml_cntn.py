@@ -12,7 +12,8 @@ parser.add_argument('-t', '--threads', type=int, default=10, help="Number of thr
 parser.add_argument('-i', '--iterations', type=int, default=50, help="Number of iterations per epoch")
 parser.add_argument('-l', '--length', type=int, default=300, help="Trace length")
 parser.add_argument('-c', '--cpu', action='store_true', help="Use CPU for computations")
-parser.add_argument('-p', '--preload', action='store_true', help="Load pretrained models")
+parser.add_argument('-e', '--preload_eviction', action='store_true', help="Load pretrained eviction")
+parser.add_argument('-a', '--preload_admission', action='store_true', help="Load pretrained admission")
 
 args = parser.parse_args()
 
@@ -35,13 +36,13 @@ cache_size = args.size
 iterations = 1000 * args.length
 env = GameEnvironment(filepath, cache_size * 1024 * 1024, args.networks, skip=0)
 
-if args.preload:
+if args.preload_eviction:
     print 'Loading pretrained from', 'models/evc_' + args.networks
     env.model.load_weights('models/evc_' + args.networks)
-if args.preload:
+if args.preload_admission:
     print 'Loading pretrained from', 'models/adm_' + args.networks
     env.model_admission.load_weights('models/adm_' + args.networks)
 
 n_threads = args.threads
 
-env.run_and_train_ml(args.iterations, 100, iterations, 1000000, filenames, 0, n_threads=args.threads)
+env.run_and_train_ml(args.iterations, 20, iterations, 200000, filenames, 0, n_threads=args.threads)

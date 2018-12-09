@@ -70,6 +70,7 @@ BOOST_PYTHON_MODULE(LRUSim) {
 	.def_readwrite("misses", &SLRUSimulator::misses)
 	.def_readwrite("byte_hits", &SLRUSimulator::byte_hits)
 	.def_readwrite("byte_misses", &SLRUSimulator::byte_misses)
+	.def_readwrite("refresh_period", &SLRUSimulator::refresh_period)
 	.def_readonly("prediction_updated_eviction", &SLRUSimulator::prediction_updated_eviction)
 	.def_readonly("prediction_updated_admission", &SLRUSimulator::prediction_updated_admission)
 	.def_readonly("latest_prediction_answer_eviction", &SLRUSimulator::latest_prediction_answer_eviction)

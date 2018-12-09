@@ -60,6 +60,7 @@ BOOST_PYTHON_MODULE(GDSFSim) {
 	.def_readwrite("byte_misses", &GDSFSimulator::byte_misses)
 	.def_readwrite("deterministic_eviction", &GDSFSimulator::deterministic_eviction)
 	.def_readwrite("deterministic_admission", &GDSFSimulator::deterministic_admission)
+	.def_readwrite("refresh_period", &GDSFSimulator::refresh_period)
 	.def_readonly("prediction_updated_eviction", &GDSFSimulator::prediction_updated_eviction)
 	.def_readonly("prediction_updated_admission", &GDSFSimulator::prediction_updated_admission)
 	.def_readonly("latest_prediction_answer_eviction", &GDSFSimulator::latest_prediction_answer_eviction)

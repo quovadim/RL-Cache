@@ -5,7 +5,7 @@ using std::cerr;
 using std::endl;
 
 CacheMLSimulatorAdm::CacheMLSimulatorAdm(uint64_t _cache_size, uint64_t _wing) :
-    CacheSim(_cache_size),
+    CacheSim(_cache_size, 0),
     wing_size(_wing),
     last_dim(2 * _wing + 1)
 {}

@@ -39,6 +39,11 @@ gdsf: GDSFSim.o
 GDSFSim.o: GDSFSim.cpp
 	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c GDSFSim.cpp
 
+oracle: OracleSim.o
+	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o OracleSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o OracleSim.so
+OracleSim.o: OracleSim.cpp
+	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c OracleSim.cpp
+
 s4lru: S4LRUSim.o
 	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o S4LRUSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o S4LRUSim.so
 S4LRUSim.o: S4LRUSim.cpp
@@ -58,5 +63,6 @@ all:
 	make mllru
 	make lru
 	make gdsf
+	make oracle
 	make copy
 

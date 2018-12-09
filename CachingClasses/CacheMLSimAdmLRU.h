@@ -63,6 +63,7 @@ BOOST_PYTHON_MODULE(CacheMLSimAdmLRU) {
 	.def_readwrite("byte_misses", &CacheMLSimulatorAdmLRU::byte_misses)
 	.def_readwrite("deterministic_eviction", &CacheMLSimulatorAdmLRU::deterministic_eviction)
 	.def_readwrite("deterministic_admission", &CacheMLSimulatorAdmLRU::deterministic_admission)
+	.def_readwrite("refresh_period", &CacheMLSimulatorAdmLRU::refresh_period)
 	.def_readonly("prediction_updated_eviction", &CacheMLSimulatorAdmLRU::prediction_updated_eviction)
 	.def_readonly("prediction_updated_admission", &CacheMLSimulatorAdmLRU::prediction_updated_admission)
 	.def_readonly("latest_prediction_answer_eviction", &CacheMLSimulatorAdmLRU::latest_prediction_answer_eviction)

@@ -1,7 +1,7 @@
 #include "SLRUSim.h"
 
 SLRUSimulator::SLRUSimulator(uint64_t _cache_size) :
-    CacheSim(_cache_size)
+    CacheSim(_cache_size, 0)
 {
     for (uint64_t i = 0; i < 4; i++) {
         ids_distribution.push_back(vector<uint64_t>());

@@ -21,7 +21,7 @@ using std::min;
 
 namespace p = boost::python;
 
-CacheSim::CacheSim(uint64_t _cache_size):
+CacheSim::CacheSim(uint64_t _cache_size, uint64_t _refresh_period):
 	deterministic_eviction(false),
 	deterministic_admission(false),
 	prediction_updated_eviction(false),
@@ -35,6 +35,7 @@ CacheSim::CacheSim(uint64_t _cache_size):
 	misses(0),
 	byte_hits(0),
 	byte_misses(0),
+	refresh_period(_refresh_period),
 	admission_hits(0),
 	admission_misses(0),
 	cache_size(_cache_size),
@@ -132,51 +133,32 @@ bool CacheSim::decide(p::dict request, p::list& eviction_features, p::list& admi
 		byte_hits += size;
 		exponential_hit_rate = WINDOW * exponential_hit_rate + 1 - WINDOW;
 
+		if (is_ml_eviction && updates[id] < refresh_period) {
+            updates[id]++;
+            ratings.erase(lit->second);
+		    cache[id] = ratings.emplace(L + latest_mark[id], id);
+            prediction_updated_eviction = false;
+            return true;
+        }
+
         double old_rating = lit->second->first;
         double estimation = predict_eviction(eviction_features);
 
         //if (!deterministic_eviction && is_ml_eviction && (distr(generator) < 0.2)) {
         // (old_rating > (L + estimation)) FOR MAX SELECTION prediction_updated_eviction = false
         // (distr(generator) < std::pow(2, -1 * std::fabs(std::log2(latest_mark[id]) - std::log2(estimation)))) FOR RANDOM
-        if (is_ml_eviction && (old_rating > (L + estimation))) {
-            ratings.erase(lit->second);
-		    cache[id] = ratings.emplace(L + latest_mark[id], id);
-            prediction_updated_eviction = false;
-            //latest_prediction_answer_eviction = uint64_t(std::fabs(std::log2(latest_mark[id])));
-            return true;
+        //if (is_ml_eviction && ((L - (old_rating - latest_mark[id])) < 128)) {
+
+        if (is_ml_eviction) {
+            updates[id] = 0;
         }
 
-        double rating = 0;
+        double rating = L + estimation;
 
         latest_mark[id] = estimation;
 
-        if (is_ml_eviction) {
-            rating = L + estimation;
-        } else {
-            rating = L + estimation;
-        }
-
         ratings.erase(lit->second);
 		cache[id] = ratings.emplace(rating, id);
-        //if (rating <= old_rating) {
-        //    prediction_updated_eviction = false;
-        //    return true;
-        //}
-
-        double max_rating = max(old_rating, ratings.rbegin()->first);
-		double min_rating = min(old_rating, ratings.begin()->first);
-		double rating_score = 0;
-        if (max_rating - min_rating > 1e-6) {
-            rating_score = 0.5 + 0.5 * (old_rating - min_rating) / (max_rating - min_rating);
-
-        }
-        //    double diff_rating = 1 - (rating - old_rating) / (max_rating - min_rating);
-        //    rating_score = diff_rating * ((max_rating - old_rating) / (max_rating - min_rating));
-		//}
-		eviction_hits_rating += rating_score;
-		eviction_byte_hits_rating += size * rating_score;
-		//total_rating -= old_rating;
-		//total_rating += rating;
 		return true;
 	}
 

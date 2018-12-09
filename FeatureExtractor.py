@@ -4,12 +4,23 @@ from tqdm import tqdm
 
 def get_feature_percentiles(feature):
     percs = [np.percentile(feature, 0)]
-    for q in range(1, 101, 5):
+    for q in range(1, 101, 3):
         p = np.percentile(feature, q)
         if p in percs:
             continue
         percs.append(p)
     return percs
+
+
+def split_feature(feature):
+    perc_steps = 1
+    percs = [i * 100 / perc_steps for i in range(perc_steps + 1)]
+    percentiles = [np.percentile(feature, item) for item in percs]
+    percentiles[0] -= 1
+    percentiles[len(percentiles) - 1] += 1
+    percentiles = list(np.unique(percentiles))
+    percentiles = sorted(percentiles)
+    return [(percentiles[i-1], percentiles[i]) for i in range(1, len(percentiles))]
 
 
 class PacketFeaturer:
@@ -26,12 +37,15 @@ class PacketFeaturer:
             feature_set = np.asarray(np.load(load_name))
             feature_set = feature_set[1000000:, :self.fnum]
             self.feature_mappings = []
-            lnames = ['size', 'frequency', 'gdsf', 'recency', 'log_recency', 'exp_recency', 'exp_log', 'bin_log']
-            for i in tqdm(range(self.fnum)):
-                #self.feature_mappings.append(get_feature_percentiles(feature_set[:, i]))
-                self.statistics.append([np.mean(feature_set[:, i]), np.std(feature_set[:, i])])
-                #print lnames[i]
-                #print get_feature_percentiles(feature_set[:, i])
+            for i in range(self.fnum):
+                self.feature_mappings.append(split_feature(feature_set[:, i]))
+                statistics_arrays = [[]] * len(self.feature_mappings[i])
+                for item in tqdm(feature_set[:, i]):
+                    feature_index = self.get_feature_vector(i, item, return_index=True)
+                    statistics_arrays[feature_index].append(item)
+                statistics_vector = [(np.mean(item), np.std(item)) for item in statistics_arrays]
+                self.statistics += statistics_vector
+
             self.dim = len(self.get_packet_features(fake_request))
         else:
             self.dim = 0
@@ -72,7 +86,7 @@ class PacketFeaturer:
     def get_packet_features_classical(self, packet):
         feature_vector = [float(packet['frequency']) / (float(packet['size'])),
                           packet['timestamp'], self.observation_flag(packet),
-                          float(packet['frequency']) * (float(packet['size'])) / (1 + self.logical_time)]
+                          float(packet['frequency'])]
         return np.asarray(feature_vector)
 
     def get_packet_features_pure(self, packet):
@@ -88,40 +102,42 @@ class PacketFeaturer:
         feature_vector.append(float(self.logical_time - packet['log_time']))
         feature_vector.append(float(packet['exp_recency']))
         feature_vector.append(float(packet['exp_log']))
-        was_seen = -1.
-        if packet['id'] in self.was_seen:
-            was_seen = 1.
-        feature_vector.append(was_seen)
+        #was_seen = -1.
+        #if packet['id'] in self.was_seen:
+        #    was_seen = 1.
+        #feature_vector.append(was_seen)
 
         features = np.asarray(feature_vector)
         return features
 
-    def get_feature_vector(self, feature_index, feature_value):
-        tlen = len(self.feature_mappings[feature_index]) + 2
+    def get_feature_vector(self, feature_index, feature_value, return_index=False):
+        tlen = len(self.feature_mappings[feature_index])
         addition = [0] * tlen
-        if feature_value <= self.feature_mappings[feature_index][0]:
-            addition[0] = 1
-            #return addition
-        if feature_value >= self.feature_mappings[feature_index][len(self.feature_mappings[feature_index]) - 1]:
-            addition[tlen - 1] = 1
-            #return addition
-        for j in range(1, len(self.feature_mappings[feature_index])):
-            if self.feature_mappings[feature_index][j - 1] <= feature_value <= self.feature_mappings[feature_index][j]:
-                addition[j] = 1
-                #return addition
-        return addition
-        print self.feature_mappings[feature_index]
-        print feature_value
-        assert False
+        counter = 0
+        for low, up in self.feature_mappings[feature_index]:
+            if low <= feature_value <= up:
+                addition[counter] = feature_value
+                break
+            counter += 1
+        if return_index:
+            return counter
+        else:
+            return np.asarray(addition)
 
     def get_packet_features_from_pure(self, pure_features):
-        return np.asarray([min(10, max(-10, (pure_features[i] - self.statistics[i][0]) / (self.statistics[i][1]))) for i in range(len(pure_features))])
-        #return np.asarray(feature_vector)
-        final_features = []
+        result = []
         for i in range(self.fnum):
-            final_features += self.get_feature_vector(i, pure_features[i])
-        return np.asarray(final_features)
+            result += self.get_feature_vector(i, pure_features[i]).tolist()
+        result_features = np.asarray(result)
+        return result_features
+
+    def apply_statistics(self, result_features):
+        result = [0] * len(result_features)
+        for i in range(len(result_features)):
+            if result_features[i] != 0:
+                result[i] = min(10, max(-10, (result_features[i] - self.statistics[i][0]) / (self.statistics[i][1])))
+        return np.asarray(result)
 
     def get_packet_features(self, packet):
         feature_vector = self.get_packet_features_pure(packet)
-        return self.get_packet_features_from_pure(feature_vector)
+        return self.apply_statistics(self.get_packet_features_from_pure(feature_vector))
