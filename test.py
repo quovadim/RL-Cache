@@ -38,4 +38,4 @@ if args.preload_admission:
     print 'Loading pretrained from', 'models/adm_' + args.networks
     env.model_admission.load_weights('models/adm_' + args.networks)
 
-env.test(filenames, args.generator)
+env.test(args.generator)

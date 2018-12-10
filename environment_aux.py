@@ -117,11 +117,12 @@ def compute_rating(value, total):
 
 
 def sampling(prob_matrix):
+    maximum_allowed = prob_matrix.shape[1]
     prob_matrix = prob_matrix.T
     s = prob_matrix.cumsum(axis=0)
     r = np.random.rand(prob_matrix.shape[1])
     k = (s < r).sum(axis=0)
-    return k
+    return [min(item, maximum_allowed - 1) for item in k]
 
 
 def get_unique_dict(data, labels=None):
@@ -185,7 +186,7 @@ def generate_data_for_models(keys,
             if adm_index < 0:
                 decisions_adm[key] = classical_admission
             else:
-                decisions_adm[key] = classical_feature_set[:, adm_index]
+                decisions_adm[key] = [bool(item == 1) for item in classical_feature_set[:, adm_index]]
 
         if rng_evc:
             if predictions_evc is None:
@@ -244,14 +245,15 @@ def test_algorithms(algorithms,
                     rows,
                     alpha,
                     output_file=None,
-                    base_iteration=0):
+                    base_iteration=0,
+                    special_keys=[]):
 
     counter = 0
 
     total_size = sum([row['size'] for row in rows])
     total_time = rows[len(rows) - 1]['timestamp'] - rows[0]['timestamp']
 
-    history = {'time': [], 'size': 0}
+    history = {'time': [], 'flow': 0}
     keys = sorted(algorithms.keys())
     for key in keys:
         history[key] = []
@@ -269,7 +271,20 @@ def test_algorithms(algorithms,
         if counter % 100 == 0 or counter == len(rows) - 1:
             names = keys
             values = [100 * metric(algorithms[alg], alpha) for alg in keys]
-            print_string = ' |'.join(['{:^14s} {:6.2f}%' for _ in range(len(names))])
+            best_performance = keys[values.index(max(values))]
+            print_list = []
+            for name in names:
+                if name in special_keys:
+                    if name == best_performance:
+                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+                    else:
+                        print_list.append('\033[92m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+                else:
+                    if name == best_performance:
+                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+                    else:
+                        print_list.append('{:^' + str(len(name)) + 's} \033[1m{:5.2f}%\033[0m')
+            print_string = ' | '.join(print_list)
             print_string = 'Iteration {:10d} ' + print_string
             subst_vals = []
             for i in range(len(names)):

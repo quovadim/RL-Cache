@@ -103,12 +103,14 @@ class PacketFeaturer:
             self.was_seen = self.was_seen[1:]
 
     def observation_flag(self, packet):
-        return packet['frequency'] != 1
+        return 1 if packet['frequency'] != 1 else 0
 
     def get_packet_features_classical(self, packet):
         feature_vector = [float(packet['frequency']) / (float(packet['size'])),
-                          packet['timestamp'], self.observation_flag(packet),
-                          float(packet['frequency']) * (float(packet['size']))]
+                          packet['timestamp'],
+                          self.observation_flag(packet),
+                          float(packet['frequency']) * (float(packet['size'])),
+                          float(packet['frequency'])]
         return np.asarray(feature_vector)
 
     def get_packet_features_pure(self, packet):

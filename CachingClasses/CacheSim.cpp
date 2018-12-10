@@ -72,8 +72,11 @@ bool CacheSim::decide(p::dict request, double eviction_rating, bool admission_de
 
     uint64_t size = p::extract<uint64_t>(request.get("size"));
 
-    if (size > cache_size)
+    if (size > cache_size) {
+	    misses += 1;
+	    byte_misses += size;
 	    return false;
+	}
 
 	uint64_t id = p::extract<uint64_t>(request.get("id"));
 

@@ -23,18 +23,24 @@ filenames = sorted(filenames, key=lambda x: x[1])
 filenames = [item[0] for item in filenames]
 
 time_data = []
+flow_data = []
 graph_data = {}
 
 for filename in filenames:
     od = pickle.load(open(filename, 'r'))
     for key in od.keys():
-        if key == 'time' or key == 'flow':
+        if key == 'time' or key == 'flow' or key == 'size':
             continue
         if key not in graph_data.keys():
             graph_data[key] = []
         graph_data[key] += od[key]
 
     time_data += od['time']
+    flow_data.append(od['flow'])
+
+flow_data = flow_data[args.skip:]
+#m_flow = max(flow_data)
+flow_data = [item / (1024 * 1024 * 1024) for item in flow_data]
 
 #add_key = 'AdaptSize'
 #adapt_data = [int(item) for item in tqdm(open('tests/history_adapt', 'r').readlines())]
@@ -60,7 +66,7 @@ for key in graph_data.keys():
 graph_data = tgd
 
 for key in graph_data.keys():
-    pstr = '{:^6s} 1% - {:7.4f}% 5% - {:7.4f}% 10% - {:7.4f}% 25% - {:7.4f}% 50% - {:7.4f}% 75% - {:7.4f}% 90% - {:7.4f}% 95% - {:7.4f}% 99% - {:7.4f}%'
+    pstr = '{:^13s} 1% - {:7.4f}% 5% - {:7.4f}% 10% - {:7.4f}% 25% - {:7.4f}% 50% - {:7.4f}% 75% - {:7.4f}% 90% - {:7.4f}% 95% - {:7.4f}% 99% - {:7.4f}%'
     print pstr.format(key,
                       100 * np.percentile(graph_data[key], 1),
                       100 * np.percentile(graph_data[key], 5),
@@ -82,13 +88,18 @@ ax.xaxis.set_major_formatter(xfmt)
 for key in graph_data.keys():
     if key == 'time':
         continue
-    data = 100 * np.asarray(graph_data[key]) - 100 * np.asarray(graph_data['LRU'])
+    data = 100 * np.asarray(graph_data[key])
     ax.plot(accumulated_time, data, label=key)
+
+ax2 = ax.twinx()
+ax2.xaxis.set_major_formatter(xfmt)
+ax2.plot(accumulated_time, flow_data, label='Flow', lw=7, alpha=0.4)
+#ax2.set_ylabel('GiB per second')
 
 fig.autofmt_xdate()
 
-plt.xlabel('Time YYYY-MM-DD HH-MM-SS')
-plt.ylabel('Hit Rate %')
+ax.set_xlabel('Time YYYY-MM-DD HH-MM-SS')
+ax.set_ylabel('Hit Rate %')
 
-plt.legend()
+ax.legend()
 plt.show()

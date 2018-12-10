@@ -1,0 +1,106 @@
+Configuration files are general form of setting parameters to the system
+We store configuration files in json format
+Fiels meaning explained below along with the example
+You can find working configuration file at config_test.json
+
+We are using alpha in a following terms :
+	our target metric is BHR * alpha + OHR * (1 - alpha)
+so change of this metric will cause change of numbers displayed
+
+possible algorithms:
+	admission schemes:
+		ML - machine learning
+		SH - second hit
+		AL - admit all
+	eviction schemes:
+		ML - machine learning
+		GDSF - Greedy Dual-Size Frequency
+		LRU - Least Recently Used
+		Oracle - Like GDSF but instead of freq / size uses freq * size, usable for BHR
+
+{
+	"cache size": 256, - Size of the cache in megabytes
+	"data folder": "data/china_featured", - Path to the data
+	
+	"lambda features": 0.99, - Speed at which historical features are decaying, higher lambda cause slower decay 
+
+	"batch size": 4096, - Batch size for model training and/or execution
+
+	"statistics": - Set of settings for PacketFeaturer
+		{
+			"statistics": "auxiliary/features_primary.npy", - path to the statistics file
+			"warmup": 1000000, - Number of lines to skip into the statistics file, don't use 0, it may falcify statistics
+			"split step": 1 - Number of intervals that you want to use for splitting, will cause generation of higher number of features
+		},
+
+	"model": - Set of settings for model creation
+		{
+			"wing size": 3, - deviation of the rating, thus final metric will be from 2^(-wing_size) to 2^(wing_size) with 2*wing_size + 1 equally distributed steps
+			
+			"dropout rate": 0.0, - Dropout rate for dropout layer
+			"use common": false, - Use shared weights between eviction and admission models
+			"multiplier common": 20, - width of the shared network
+			"layers common": 3, - depth of the shared network
+
+			"multiplier each": 100, - width of the joint network
+			"layers each": 3, - depth of the joint network
+
+			"use batch normalization": true, - use batch normalization
+
+			"eviction lr": 1e-5, - eviction learning rate
+			"admission lr": 1e-5 - admission learning rate
+
+		},
+	"testing": - Set for testing, if you are not planning to use test, you may not include it into json
+		{
+		"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "SH-GDSF", "SH-LRU", "SH-Oracle", "ML-ML-RNG", "ML-ML-DET"], - list of algorithms to test
+		"period": 360, - perid of saving the result, minutes
+		"requests max": 50000000, - maximum number of requests to process
+		"reset": true, - drop results on each save
+		"alpha": 1 - alpha for tests
+		},
+	"training": - Set for training, if you are not planning to use train, you may not include it into json
+		{
+			"target": "ML-ML", - target algorithm (without RNG or DET suffix)
+
+			"session configuration": - parameters for sampling
+					{
+						"collect discounted": true, - Use discounted reward or regular
+						"randomness change": true, - if true, only first "point of change" requests taken for training
+						"point of change": 100000, - number of requests take for training if randomness change is true
+						"gamma": 0.01, - gamma for discount
+						"alpha": 1 - alpha for train
+					},
+
+			"requests max": 2000000, - maximum number of requests for train
+			"samples": 150, - number of samples at each subtrace
+
+			"percentile admission": 95, - admission percentile value
+			"percentile eviction": 95, - eviction percentile value
+
+			"epochs": 1, - number of epoch on each training set
+			"warmup": 100000, - number of requests to skip
+			"runs": 6, - total number of runs through trace (each run up to requests max)
+			"repetitions": 1, - number of times to train on each subset during 1 run
+			"drop": true, - drop previous samples collected inside several repetitions (may cause RAM usage)
+			
+			"overlap": 100000, - number of requests that will be reused for testing
+			"period": 200000, - number of requests into subtrace
+
+			"refresh policy": "monotonic", - decaying policy for refresh value change
+			"refresh value": 8, - initial refresh value
+
+			"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "SH-GDSF", "SH-LRU", "SH-Oracle"], - set of algorithms to compare with during training
+
+			"iterative": false, - Train 1 run eviction and the other admission and so on
+			"start iteration": "E", - Start with eviction, if not 'E' will run from admission
+
+			"IP:train admission": true, - If false no admission training regardless of other parameters
+			"IP:train eviction": true, - If false no eviction training regardless of other parameters
+
+			"dump sessions": true, - If true will drop bad samples during samples generation, setting up false may cause RAM usage
+			"dump limit": 200, - number of samples after which dropping starts
+			"dump percentile": 75 - percentile that is used to define bad samples.
+		}
+
+}

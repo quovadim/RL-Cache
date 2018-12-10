@@ -3,12 +3,10 @@ from os.path import isfile, join
 import sys
 from hurry.filesize import size as fsize
 from tqdm import tqdm
-import keras.layers as l
-from keras.models import Sequential
-from keras.optimizers import Adam
 from FeatureExtractor import PacketFeaturer
 
 from environment_aux import *
+from model import *
 
 
 class GameEnvironment:
@@ -28,66 +26,9 @@ class GameEnvironment:
         self.wing_size = self.config['model']["wing size"]
         self.last_dim = self.wing_size * 2 + 1
 
-        dropout_rate = self.config['model']['dropout rate']
-
-        if self.config['model']['use common']:
-            multiplier_common = self.config['model']['multiplier common']
-            layers_common = self.config['model']['layers common']
-
-        multiplier_each = self.config['model']['multiplier each']
-        layers_each = self.config['model']['layers each']
-
-        if self.config['model']['use common']:
-            self.cm = common_model = Sequential()
-            common_model.add(l.Dense(self.featurer.dim * multiplier_common, input_shape=(2 * self.featurer.dim,),
-                                     activation='elu'))
-            if self.config['model']['use batch normalization']:
-                common_model.add(l.BatchNormalization())
-            for _ in range(layers_common):
-                common_model.add(l.Dropout(dropout_rate))
-                common_model.add(l.Dense(self.featurer.dim * multiplier_common, activation='elu'))
-
-        self.model_eviction = Sequential()
-        self.model_eviction.add(l.Dense(self.featurer.dim * multiplier_each, input_shape=(2 * self.featurer.dim,),
-                                        activation='elu'))
-        if self.config['model']['use common']:
-            self.model_eviction.add(common_model)
-        else:
-            if self.config['model']['use batch normalization']:
-                self.model_eviction.add(l.BatchNormalization())
-
-        for i in range(layers_each):
-            self.model_eviction.add(l.Dropout(dropout_rate))
-            self.model_eviction.add(l.Dense(self.featurer.dim * int(multiplier_each * (layers_each - i) / layers_each),
-                                            activation='elu'))
-        self.model_eviction.add(l.Dropout(dropout_rate))
-        self.model_eviction.add(l.Dense(self.last_dim, activation='softmax'))
-
-        self.evc_optimizer = Adam(lr=self.config['model']['eviction lr'])
-
-        self.model_eviction.compile(self.evc_optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-
-        self.model_admission = Sequential()
-
-        self.model_admission.add(l.Dense(self.featurer.dim * multiplier_each, input_shape=(2 * self.featurer.dim,),
-                                         activation='elu'))
-        if self.config['model']['use common']:
-            self.model_admission.add(common_model)
-        else:
-            if self.config['model']['use batch normalization']:
-                self.model_admission.add(l.BatchNormalization())
-
-        for i in range(layers_each):
-            self.model_admission.add(l.Dropout(dropout_rate))
-            self.model_admission.add(l.Dense(self.featurer.dim * int(multiplier_each * (layers_each - i) / layers_each),
-                                             activation='elu'))
-
-        self.model_admission.add(l.Dropout(dropout_rate))
-        self.model_admission.add(l.Dense(2, activation='softmax'))
-
-        self.adm_optimizezr = Adam(lr=self.config['model']['admission lr'])
-
-        self.model_admission.compile(self.adm_optimizezr, loss='binary_crossentropy', metrics=['accuracy'])
+        self.common_model = create_common_model(self.config['model'], self.featurer.dim)
+        self.model_admission = create_admission_model(self.config['model'], self.featurer.dim, self.common_model)
+        self.model_eviction = create_eviction_model(self.config['model'], self.featurer.dim, self.common_model)
 
     def test(self, o_file_generator):
         counter = 0
@@ -191,6 +132,7 @@ class GameEnvironment:
             classes_names = self.config['training']['algorithms']
             classes_names.append(self.config['training']['target'] + '-DET')
             classes_names.append(self.config['training']['target'] + '-RNG')
+            special_keys = [self.config['training']['target'] + '-DET', self.config['training']['target'] + '-RNG']
             algorithms = {}
             algorithms_data = {}
 
@@ -220,7 +162,7 @@ class GameEnvironment:
             if self.config['training']['refresh policy'] == 'static':
                 pass
             if self.config['training']['refresh policy'] == 'monotonic':
-                refresh_value = max(0, refresh_value - 1 - (refresh_value * iteration) / runs)
+                refresh_value = max(0, refresh_value - 2 * (refresh_value * iteration) / runs)
 
             algorithm_rng.refresh_period = refresh_value
             algorithm_det.refresh_period = refresh_value
@@ -303,7 +245,7 @@ class GameEnvironment:
                     print 'Warming up', warmup_period
 
                     test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows, alpha,
-                                    base_iteration=base_iteration)
+                                    base_iteration=base_iteration, special_keys=special_keys)
 
                     for key in algorithms.keys():
                         algorithms[key].reset()
@@ -322,7 +264,7 @@ class GameEnvironment:
                     algorithms_copy[key].reset()
 
                 test_algorithms(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                                base_iteration=base_iteration)
+                                base_iteration=base_iteration, special_keys=special_keys)
 
                 bool_array = [[train_eviction, train_admission]] * repetitions
 
@@ -436,7 +378,7 @@ class GameEnvironment:
                     algorithms[key].reset()
 
                 test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                                base_iteration=base_iteration)
+                                base_iteration=base_iteration, special_keys=special_keys)
 
                 base_iteration += step
 
