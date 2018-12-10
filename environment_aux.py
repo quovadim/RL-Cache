@@ -81,6 +81,10 @@ def name_to_class(name):
         class_type = LRUSimulator
         eviction_random = False
         eviction_index = 1
+    if name_eviction == 'LFU':
+        class_type = LRUSimulator
+        eviction_random = False
+        eviction_index = 4
     if name_eviction == 'Oracle':
         class_type = LRUSimulator
         eviction_random = False

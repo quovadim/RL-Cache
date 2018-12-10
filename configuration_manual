@@ -16,6 +16,7 @@ possible algorithms:
 		ML - machine learning
 		GDSF - Greedy Dual-Size Frequency
 		LRU - Least Recently Used
+		LFU - Least Frequently Used
 		Oracle - Like GDSF but instead of freq / size uses freq * size, usable for BHR
 
 {

@@ -1,6 +1,6 @@
 {
-	"cache size": 1024,
-	"data folder": "data/china_featured",
+	"cache size": 128,
+	"data folder": "data/american_featured",
 	
 	"lambda features": 0.99,
 
@@ -71,7 +71,7 @@
 			"refresh policy": "monotonic",
 			"refresh value": 8,
 
-			"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "SH-GDSF", "SH-LRU", "SH-Oracle"],
+			"algorithms": ["SH-GDSF", "SH-LRU", "SH-LFU", "SH-Oracle"],
 
 			"iterative": false,
 			"start iteration": "E",
