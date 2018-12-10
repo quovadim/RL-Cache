@@ -1,0 +1,70 @@
+{
+	"cache size": 128,
+	"data folder": "data/china_featured",
+
+	"lambda features": 0.99,
+
+	"batch size": 4096,
+
+	"model":
+		{
+
+			"wing size": 3,
+			
+			"dropout rate": 0.0,
+			"use common": false,
+			"multiplier common": 20,
+			"layers common": 3,
+
+			"multiplier each": 100,
+			"layers each": 3,
+
+			"use batch normalization": true,
+
+			"eviction lr": 1e-5,
+			"admission lr": 1e-5
+
+		},
+	"testing":
+		{
+		"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "ML-ML-RNG", "ML-ML-DET"],
+		"period": 360,
+		"requests max": 50000000,
+		"reset": true
+		},
+	"training":
+		{
+			"target": "ML-ML",
+
+			"requests max": 20000000,
+			"samples": 450,
+
+			"percentile admission": 95,
+			"percentile eviction": 95,
+
+			"epochs": 1,
+			"warmup": 50000,
+			"runs": 10,
+			"repetitions": 1,
+			"drop": true,
+			
+			"overlap": 0,
+			"period": 50000,
+
+			"refresh policy": "static",
+			"refresh value": 5,
+
+			"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle"],
+
+			"iterative": false,
+			"start iteration": "E",
+
+			"IP:train admission": true,
+			"IP:train eviction": true,
+
+			"dump sessions": true,
+			"dump limit": 200,
+			"dump percentile": 75
+		}
+
+}

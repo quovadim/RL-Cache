@@ -1,15 +1,114 @@
 import numpy as np
 from tqdm import tqdm
+import sys
 
 
-def get_feature_percentiles(feature):
-    percs = [np.percentile(feature, 0)]
-    for q in range(1, 101, 3):
-        p = np.percentile(feature, q)
-        if p in percs:
-            continue
-        percs.append(p)
-    return percs
+def gen_feature_set(rows, featurer, forget_lambda, memory_vector=None, classical=False, pure=False):
+    feature_matrix = []
+    featurer.reset()
+    counter = 0
+    memory_features = []
+    if memory_vector is None and not classical:
+        memory_vector = np.zeros(featurer.dim)
+
+    classical_substr = 'ML'
+    if classical:
+        classical_substr = 'Classical'
+    pure_substr = ''
+    if classical and pure:
+        pure_substr = 'Pure'
+    types_substr = classical_substr + ' ' + pure_substr
+    print 'Generating', len(rows), 'features', types_substr
+
+    for row in tqdm(rows):
+        featurer.update_packet_state(row)
+        if classical:
+            if pure:
+                data = featurer.get_packet_features_pure(row)
+            else:
+                data = featurer.get_packet_features_classical(row)
+        else:
+            data = featurer.get_packet_features(row)
+        feature_matrix.append(data)
+        featurer.update_packet_info(row)
+        counter += 1
+
+    if not classical:
+        for item in feature_matrix:
+            memory_features.append(memory_vector)
+            memory_vector = memory_vector * forget_lambda + item * (1 - forget_lambda)
+        memory_features = np.asarray(memory_features)
+        feature_matrix = np.concatenate([feature_matrix, memory_features], axis=1)
+        return feature_matrix, memory_vector
+
+    return np.asarray(feature_matrix)
+
+
+def iterate_dataset(filenames):
+    for fname in filenames:
+        names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'log_time',
+                'exp_recency', 'exp_log']#, 'future']
+        types = [int, int, int, int, int, int, float, float]#, float]
+        hdlr = open(fname, 'r')
+
+        for line in hdlr:
+            lines_converted = line.split(' ')
+            lines_converted = [types[i](lines_converted[i]) for i in range(len(types))]
+            yield dict(zip(names, lines_converted))
+
+        hdlr.close()
+
+
+def collect_features(ofname, t_max, filenames, pure=None, verbose=True):
+    feature_matrix = []
+    counter = 0
+
+    featurer = PacketFeaturer(pure)
+
+    if pure is not None:
+        ofile = open(ofname, 'w')
+
+    data = []
+
+    try:
+        for row in iterate_dataset(filenames):
+            if pure is None and counter % 500000 == 0:
+                np.save(ofname, feature_matrix)
+            if counter > t_max:
+                break
+            featurer.update_packet_state(row)
+            if pure is None:
+                data = featurer.get_packet_features_pure(row).tolist()
+            else:
+                data = featurer.get_packet_features(row).tolist()
+            data.append(row['timestamp'])
+            data.append(row['id'])
+            data.append(row['size'])
+            feature_matrix.append(np.asarray(data))
+            if verbose:
+                if counter % 5000 == 0:
+                    d = featurer.dim
+                    if pure:
+                        d = featurer.fnum
+                    str_formatted = ' '.join(['{:^7.4f}' for _ in range(d)])
+                    str_formatted = '{:10d}  ' + str_formatted
+                    means = np.mean(feature_matrix, axis=0).tolist()
+                    str_formatted = str_formatted.format(*([counter] + means))
+                    sys.stdout.write('\r' + str_formatted)
+                    sys.stdout.flush()
+            if pure is not None and counter % 50000 == 0:
+                for line in feature_matrix:
+                    ofile.write(' '.join([str(item) for item in line]) + '\n')
+                feature_matrix = []
+            featurer.update_packet_info(row)
+            counter += 1
+        if verbose:
+            print ''
+    except KeyboardInterrupt:
+        if pure is None:
+            np.save(ofname, feature_matrix)
+        else:
+            ofile.close()
 
 
 def split_feature(feature):
@@ -35,7 +134,7 @@ class PacketFeaturer:
         print 'Real features', self.fnum
         if load_name is not None:
             feature_set = np.asarray(np.load(load_name))
-            feature_set = feature_set[1000000:, :self.fnum]
+            feature_set = feature_set[1000000:2000000, :self.fnum]
             self.feature_mappings = []
             for i in range(self.fnum):
                 self.feature_mappings.append(split_feature(feature_set[:, i]))
