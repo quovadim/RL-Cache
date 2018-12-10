@@ -7,19 +7,16 @@ from tqdm import tqdm
 import keras.layers as l
 from keras.models import Sequential
 from keras.optimizers import Adam, SGD
-from CacheMLSim import CacheMLSimulator
-from CacheMLSimAdm import CacheMLSimulatorAdm
-from CacheMLSimAdmLRU import CacheMLSimulatorAdmLRU
+from MLSim import MLSimulator
+from GDSim import GDSimulator
 from LRUSim import LRUSimulator
-from GDSFSim import GDSFSimulator
-from OracleSim import OracleSimulator
 from FeatureExtractor import PacketFeaturer
+import json
 
 from multiprocessing import Process, Queue
 from copy import deepcopy
 
 import pickle
-import datetime
 
 
 def threaded(f, daemon=False):
@@ -58,8 +55,17 @@ def metric(algorithm):
     return metric_funct(algorithm.byte_hit_rate(), algorithm.hit_rate())
 
 
-def eviction_rating_metric(algorithm):
-    return metric_funct(algorithm.byte_eviction_rating(), algorithm.eviction_rating())
+def compute_rating(value, total):
+    w = (total - 1) / 2
+    return 2. ** (float(value - w))
+
+
+def vectorized(prob_matrix):
+    prob_matrix = prob_matrix.T
+    s = prob_matrix.cumsum(axis=0)
+    r = np.random.rand(prob_matrix.shape[1])
+    k = (s < r).sum(axis=0)
+    return k
 
 
 def get_unique_dict(data, labels=None):
@@ -88,6 +94,8 @@ def generate_session_continious(
         algorithm_template,
         eviction_deterministic=False,
         admission_deterministic=False,
+        eviction_defined=False,
+        admission_defined=False,
         collect_eviction=True,
         collect_admission=True):
 
@@ -95,39 +103,61 @@ def generate_session_continious(
     lactions = []
     lstates_adm = []
     lactions_adm = []
+
     np.random.seed()
 
     algorithm = copy_object(algorithm_template)
 
     algorithm.reset()
 
-    algorithm.deterministic_eviction = eviction_deterministic
-    algorithm.deterministic_admission = admission_deterministic
-
     reward_hits = 0
     reward_total = 0
     gamma = 0.01 ** (1.0/len(rows))
     multiplier = 1
 
+    if not eviction_defined:
+        if eviction_deterministic:
+            eviction_decisions = np.argmax(predictions_evc, axis=1)
+        else:
+            eviction_decisions = vectorized(predictions_evc)
+        evc_decision_values = eviction_decisions
+        eviction_decisions = [compute_rating(eviction_decisions[i], len(predictions_evc[i]))
+                              for i in range(len(eviction_decisions))]
+    else:
+        eviction_decisions = predictions_evc
+
+    if not admission_defined:
+        if admission_deterministic:
+            admission_decisions = np.argmax(predictions_adm, axis=1)
+        else:
+            admission_decisions = vectorized(predictions_adm)
+        adm_decision_values = admission_decisions
+        admission_decisions = [bool(admission_decisions[i] == 1) for i in range(len(eviction_decisions))]
+    else:
+        admission_decisions = predictions_adm
+
     for i in range(len(rows)):
-        hit = algorithm.decide(rows[i], (predictions_evc[i]).tolist(), (predictions_adm[i]).tolist())
-        if hit:
-            reward_hits += multiplier * metric_funct(rows[i]['size'], 1)
-        reward_total += multiplier * metric_funct(rows[i]['size'], 1)
-        multiplier *= gamma
 
-        if i > len(rows) / 2:
-            eviction_deterministic = True
-            admission_deterministic = True
-            algorithm.deterministic_eviction = eviction_deterministic
-            algorithm.deterministic_admission = admission_deterministic
+        hit = algorithm.decide(rows[i], eviction_decisions[i], admission_decisions[i])
+        #if hit:
+        #    reward_hits += multiplier * metric_funct(rows[i]['size'], 1)
+        #reward_total += multiplier * metric_funct(rows[i]['size'], 1)
+        #multiplier *= gamma
 
-        if collect_eviction and not eviction_deterministic and algorithm.prediction_updated_eviction:
+        #if i > len(rows) / 2:
+        #    eviction_deterministic = True
+        #    admission_deterministic = True
+        #    algorithm.deterministic_eviction = eviction_deterministic
+         #   algorithm.deterministic_admission = admission_deterministic
+
+        if collect_eviction and not eviction_deterministic and not eviction_defined \
+                and algorithm.prediction_updated_eviction:
             lstates.append(i)
-            lactions.append(algorithm.latest_prediction_answer_eviction)
-        if i < len(rows) / 2 and collect_admission and not admission_deterministic and algorithm.prediction_updated_admission:
+            lactions.append(evc_decision_values[i])
+        if collect_admission and not admission_deterministic and not admission_defined \
+                and algorithm.prediction_updated_admission:
             lstates_adm.append(i)
-            lactions_adm.append(algorithm.latest_prediction_answer_admission)
+            lactions_adm.append(adm_decision_values[i])
 
     if collect_admission:
         admission_rating = metric(algorithm)
@@ -139,8 +169,8 @@ def generate_session_continious(
     else:
         eviction_rating = 0
 
-    eviction_rating = reward_hits / reward_total
-    admission_rating = reward_hits / reward_total
+    #eviction_rating = reward_hits / reward_total
+    #admission_rating = reward_hits / reward_total
 
     return lstates, np.asarray(lactions), lstates_adm, np.asarray(lactions_adm), eviction_rating, admission_rating
 
@@ -197,7 +227,7 @@ class GameEnvironment:
         self.model.add(l.Dropout(dropout_rate))
         self.model.add(l.Dense(self.last_dim, activation='softmax'))
 
-        self.evc_optimizer = Adam(lr=1e-4)
+        self.evc_optimizer = Adam(lr=1e-5)
 
         self.model.compile(self.evc_optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
@@ -216,7 +246,7 @@ class GameEnvironment:
         self.model_admission.add(l.Dropout(dropout_rate))
         self.model_admission.add(l.Dense(2, activation='softmax'))
 
-        self.adm_optimizezr = Adam(lr=1e-4)
+        self.adm_optimizezr = Adam(lr=1e-5)
 
         self.model_admission.compile(self.adm_optimizezr, loss='binary_crossentropy', metrics=['accuracy'])
 
@@ -272,19 +302,6 @@ class GameEnvironment:
             else:
                 ofile.close()
 
-    def extract_pure_from_classical(self, classical, c_vect=None):
-        feature_matrix = []
-        forget_lambda = 0.99
-        memory_features = []
-        if c_vect is None:
-            c_vect = np.zeros(self.featurer.dim)
-        for item in tqdm(classical):
-            nvect = self.featurer.get_packet_features_from_pure(item)
-            feature_matrix.append(nvect)
-            memory_features.append(c_vect)
-            c_vect = c_vect * forget_lambda + nvect * (1 - forget_lambda)
-        return np.concatenate([feature_matrix, memory_features], axis=1), c_vect
-
     def gen_feature_set(self, rows, c_vect=None, classical=False, pure=False, verbose=False):
         feature_matrix = []
         self.featurer.reset()
@@ -321,7 +338,8 @@ class GameEnvironment:
                         algorithms_classic,
                         predictions_ml_adm,
                         predictions_ml_evc,
-                        predictions_classic,
+                        predictions_classic_adm,
+                        predictions_classic_evc,
                         rows,
                         ofile=None,
                         verbose=True,
@@ -330,23 +348,25 @@ class GameEnvironment:
 
         counter = 0
 
-        history = {'time': []}
+        total_size = sum([row['size'] for row in rows])
+        total_time = rows[len(rows) - 1]['timestamp'] - rows[0]['timestamp']
+
+        history = {'time': [], 'size': 0}
         for key in algorithms_classic.keys():
             history[key] = []
         for key in algorithms_ml.keys():
             history[key] = []
 
-        for key in algorithms_ml.keys():
-            algorithms_ml[key].deterministic_eviction = 'DET' in key
-            algorithms_ml[key].deterministic_admission = 'DET' in key
-
         for row in rows:
             for alg in algorithms_classic.keys():
-                algorithms_classic[alg].decide(row, predictions_classic[alg][counter], predictions_classic[alg][counter])
+                algorithms_classic[alg].decide(row,
+                                               predictions_classic_evc[alg][counter],
+                                               predictions_classic_adm[alg][counter])
             for alg in algorithms_ml.keys():
                 algorithms_ml[alg].decide(row, predictions_ml_evc[alg][counter], predictions_ml_adm[alg][counter])
 
             if ofile is not None and (counter % 100 < 0 or counter == len(rows) - 1):
+                history['flow'] = float(total_size) / (1e-4 + float(total_time))
                 history['time'].append(row['timestamp'])
                 for key in algorithms_classic.keys():
                     history[key].append(metric(algorithms_classic[key]))
@@ -393,8 +413,8 @@ class GameEnvironment:
         current_rows = []
         file_counter = 0
 
-        classes_ml = {'ML': CacheMLSimulator, 'DET ML': CacheMLSimulator}
-        classes_classic = {'GDSF': GDSFSimulator, 'LRU': LRUSimulator}
+        classes_ml = {'ML': MLSimulator, 'DET ML': MLSimulator}
+        classes_classic = {'GDSF': GDSimulator, 'LRU': LRUSimulator, 'Oracle': LRUSimulator}
 
         algorithms_classic = {}
         for key in classes_classic:
@@ -402,14 +422,21 @@ class GameEnvironment:
 
         algorithms_ml = {}
         for key in classes_ml:
-            algorithms_ml[key] = classes_ml[key](self.cache_size, self.wing_size)
+            algorithms_ml[key] = classes_ml[key](self.cache_size)
 
         c_vect = None
+
+        start_time = None
 
         for row in GameEnvironment.iterate_dataset_over_all(filenames, skip):
             if counter > t_max:
                 break
-            if counter != 0 and counter % period == 0:
+
+            if start_time is None:
+                start_time = row['timestamp']
+
+            if counter != 0 and row['timestamp'] - start_time > period:
+                start_time = row['timestamp']
                 print ''
 
                 feature_set_classical = self.gen_feature_set(current_rows, classical=True, verbose=True)
@@ -418,17 +445,34 @@ class GameEnvironment:
 
                 self.featurer.preserve()
 
-                predictions_evc = {
-                    'ML': [item.tolist() for item in
-                           self.model.predict(feature_set, verbose=1, batch_size=4 * 4096)]}
-                predictions_evc['DET ML'] = predictions_evc['ML']
-                predictions_adm = {
-                    'ML': [item.tolist() for item in
-                           self.model_admission.predict(feature_set, verbose=1, batch_size=4 * 4096)]}
-                predictions_adm['DET ML'] = predictions_adm['ML']
+                classical_admission = [True] * len(feature_set_classical)
 
-                predictions_classic = {'GDSF': [item.tolist() for item in feature_set_classical],
-                                       'LRU': [item.tolist() for item in feature_set_classical]}
+                classical_features = [item.tolist() for item in feature_set_classical]
+
+                predictions_classic_adm = {'GDSF': classical_admission,
+                                           'LRU': classical_admission,
+                                           'Oracle': classical_admission}
+
+                predictions_classic_evc = {'GDSF': classical_features[:, 0],
+                                           'LRU': classical_features[:, 1],
+                                           'Oracle': classical_features[:, 3]}
+
+                eviction_predictions = self.model.predict(feature_set, verbose=1, batch_size=4 * 4096)
+
+                predictions_evc = {
+                    'ML': [compute_rating(item, eviction_predictions.shape[1])
+                           for item in vectorized(eviction_predictions)],
+                    'DET ML': [compute_rating(np.argmax(item), eviction_predictions.shape[1])
+                               for item in eviction_predictions]
+                }
+
+                admission_predictions = self.model_admission.predict(feature_set, verbose=1, batch_size=4 * 4096)
+
+                predictions_adm = {
+                    'ML': [item == 1
+                           for item in vectorized(admission_predictions)],
+                    'DET ML': [np.argmax(item) == 1 for item in admission_predictions]
+                }
 
                 for alg in algorithms_ml.keys():
                     algorithms_ml[alg].reset()
@@ -439,7 +483,8 @@ class GameEnvironment:
                                                 algorithms_classic,
                                                 predictions_adm,
                                                 predictions_evc,
-                                                predictions_classic,
+                                                predictions_classic_adm,
+                                                predictions_classic_evc,
                                                 current_rows,
                                                 o_file_generator + '_' + str(file_counter),
                                                 verbose,
@@ -464,23 +509,30 @@ class GameEnvironment:
         current_rows = []
         file_counter = 0
 
-        classes_ml = {'ML': CacheMLSimulatorAdm}
-        classes_classic = {'GDSF': GDSFSimulator, 'LRU': LRUSimulator}
+        classes_ml = {'ML': MLSimulator, 'DET ML': MLSimulator}
+        classes_classic = {'GDSF': GDSimulator, 'LRU': LRUSimulator, 'Oracle': LRUSimulator}
 
         algorithms_classic = {}
-
-        c_vect = None
         for key in classes_classic:
             algorithms_classic[key] = classes_classic[key](self.cache_size)
 
         algorithms_ml = {}
         for key in classes_ml:
-            algorithms_ml[key] = classes_ml[key](self.cache_size, self.wing_size)
+            algorithms_ml[key] = classes_ml[key](self.cache_size)
+
+        c_vect = None
+
+        start_time = None
 
         for row in GameEnvironment.iterate_dataset_over_all(filenames, skip):
             if counter > t_max:
                 break
-            if counter != 0 and counter % period == 0:
+
+            if start_time is None:
+                start_time = row['timestamp']
+
+            if counter != 0 and row['timestamp'] - start_time > period:
+                start_time = row['timestamp']
                 print ''
 
                 feature_set_classical = self.gen_feature_set(current_rows, classical=True, verbose=True)
@@ -489,17 +541,30 @@ class GameEnvironment:
 
                 self.featurer.preserve()
 
+                classical_admission = [True] * len(feature_set_classical)
+
+                classical_features = [item.tolist() for item in feature_set_classical]
+
+                predictions_classic_adm = {'GDSF': classical_admission,
+                                           'LRU': classical_admission,
+                                           'Oracle': classical_admission}
+
+                predictions_classic_evc = {'GDSF': classical_features[:, 0],
+                                           'LRU': classical_features[:, 1],
+                                           'Oracle': classical_features[:, 3]}
+
                 predictions_evc = {
-                    'ML': [item.tolist() for item in feature_set_classical]}
-                predictions_evc['DET ML'] = predictions_evc['ML']
+                    'ML': classical_features[:, 0],
+                    'DET ML': classical_features[:, 0]
+                }
+
+                admission_predictions = self.model_admission.predict(feature_set, verbose=1, batch_size=4 * 4096)
 
                 predictions_adm = {
-                    'ML': [item.tolist() for item in
-                           self.model_admission.predict(feature_set, verbose=1, batch_size=4 * 4096)]}
-                predictions_adm['DET ML'] = predictions_adm['ML']
-
-                predictions_classic = {'GDSF': [item.tolist() for item in feature_set_classical],
-                                       'LRU': [item.tolist() for item in feature_set_classical]}
+                    'ML': [item == 1
+                           for item in vectorized(admission_predictions)],
+                    'DET ML': [np.argmax(item) == 1 for item in admission_predictions]
+                }
 
                 for alg in algorithms_ml.keys():
                     algorithms_ml[alg].reset()
@@ -510,19 +575,13 @@ class GameEnvironment:
                                                 algorithms_classic,
                                                 predictions_adm,
                                                 predictions_evc,
-                                                predictions_classic,
+                                                predictions_classic_adm,
+                                                predictions_classic_evc,
                                                 current_rows,
                                                 o_file_generator + '_' + str(file_counter),
                                                 verbose,
                                                 base_iteration=counter - period)
-
                 file_counter += 1
-                del current_rows
-                del feature_set_classical
-                del feature_set
-                del predictions_evc
-                del predictions_adm
-                del predictions_classic
                 current_rows = [row]
             else:
                 current_rows.append(row)
@@ -561,7 +620,6 @@ class GameEnvironment:
             period,
             filenames,
             skip,
-            CacheMLSimulator,
             n_threads,
             False,
             False
@@ -583,7 +641,6 @@ class GameEnvironment:
             period,
             filenames,
             skip,
-            CacheMLSimulatorAdm,
             n_threads,
             True,
             False
@@ -596,7 +653,6 @@ class GameEnvironment:
                       period,
                       filenames,
                       skip,
-                      generative_class,
                       n_threads=10,
                       evc_classical=False,
                       adm_classical=False):
@@ -610,7 +666,7 @@ class GameEnvironment:
 
         epochs = 1
 
-        warmup_period = 400000
+        warmup_period = 0#500000
 
         t_max += warmup_period
 
@@ -631,21 +687,21 @@ class GameEnvironment:
 
             c_vect = None
 
-            algorithm = generative_class(self.cache_size, self.wing_size)
+            algorithm = MLSimulator(self.cache_size)
 
-            det_algorithm = generative_class(self.cache_size, self.wing_size)
+            det_algorithm = MLSimulator(self.cache_size)
 
             algorithms_ml = {'ML': algorithm,
                              'DET ML': det_algorithm}
 
-            refresh_val = period / 10000
+            refresh_val = -1
 
-            algorithm.refresh_period = 3#max(0, refresh_val - 1 - (refresh_val * iteration) / iterations)
-            det_algorithm.refresh_period = 3#max(0, refresh_val - 1 - (refresh_val * iteration) / iterations)
+            algorithm.refresh_period =5#max(0, refresh_val - 1 - (refresh_val * iteration) / iterations)
+            det_algorithm.refresh_period = 5#max(0, refresh_val - 1 - (refresh_val * iteration) / iterations)
 
-            algorithms_classic = {'GDSF': GDSFSimulator(self.cache_size),
+            algorithms_classic = {'GDSF': GDSimulator(self.cache_size),
                                   'LRU': LRUSimulator(self.cache_size),
-                                  'Oracle': OracleSimulator(self.cache_size)}
+                                  'Oracle': LRUSimulator(self.cache_size)}
 
             print 'New iteration', iteration
 
@@ -657,14 +713,20 @@ class GameEnvironment:
 
             iterative = True
             iterator_bool = True
-            train_admission = False#iteration % 2 == 1
-            train_eviction = True#iteration % 2 == 0
+            train_admission = not adm_classical#iteration % 2 == 1
+            train_eviction = not evc_classical#iteration % 2 == 0
 
-            step = period / 2
+            step = period
             save_rows = period - step
 
             feature_set = None
             feature_set_classical = None
+
+            predictions_evc_test = {}
+            predictions_adm_test = {}
+
+            predictions_classic_evc = {}
+            predictions_classic_adm = {}
 
             for row in GameEnvironment.iterate_dataset_over_all(filenames, skip):
                 if counter > t_max:
@@ -718,24 +780,40 @@ class GameEnvironment:
                 time_diff = time_diff.replace(' ', '0')
                 print 'Size arrived {:^15s} Time passed'.format(fsize(traffic_arrived)), time_diff
 
+                admission_decisions = [True] * len(feature_set_classical)
+
+                if not evc_classical:
+                    predictions_evc_test = {'ML': [compute_rating(item, predictions_evc.shape[1])
+                                                   for item in vectorized(predictions_evc)],
+                                            'DET ML': [np.argmax(item) for item in predictions_evc]}
+                else:
+                    predictions_evc_test = {'ML': feature_set_classical[:, 0],
+                                            'DET ML': feature_set_classical[:, 0]}
+
+                if not adm_classical:
+                    predictions_adm_test = {'ML': vectorized(predictions_adm),
+                                            'DET ML': [np.argmax(item) for item in predictions_adm]}
+                else:
+                    predictions_adm_test = {'ML': admission_decisions,
+                                            'DET ML': admission_decisions}
+
+                predictions_classic_evc = {'GDSF': feature_set_classical[:, 0],
+                                           'LRU': feature_set_classical[:, 1],
+                                           'Oracle': feature_set_classical[:, 3]}
+
+                predictions_classic_adm = {'GDSF': admission_decisions,
+                                           'LRU': admission_decisions,
+                                           'Oracle': admission_decisions}
+
                 if skip_required:
                     print 'Warming up', warmup_period
-
-                    predictions_evc_test = {'ML': [item.tolist() for item in predictions_evc],
-                                            'DET ML': [item.tolist() for item in predictions_evc]}
-                    predictions_adm_test = {'ML': [item.tolist() for item in predictions_adm],
-                                            'DET ML': [item.tolist() for item in predictions_adm]}
-
-                    predictions_cls = [item.tolist() for item in feature_set_classical]
-                    predictions_classic = {'GDSF': predictions_cls,
-                                           'LRU': predictions_cls,
-                                           'Oracle': predictions_cls}
 
                     GameEnvironment.test_algorithms(algorithms_ml,
                                                     algorithms_classic,
                                                     predictions_adm_test,
                                                     predictions_evc_test,
-                                                    predictions_classic,
+                                                    predictions_classic_adm,
+                                                    predictions_classic_evc,
                                                     current_rows,
                                                     verbose=True,
                                                     base_iteration=base_iteration)
@@ -754,24 +832,13 @@ class GameEnvironment:
                     skip_required = False
                     continue
 
-                predictions_evc_test = {'ML': [item.tolist() for item in predictions_evc[:step]],
-                                        'DET ML': [item.tolist() for item in predictions_evc[:step]]}
-                predictions_adm_test = {'ML': [item.tolist() for item in predictions_adm[:step]],
-                                        'DET ML': [item.tolist() for item in predictions_adm][:step]}
+                for key in predictions_evc_test.keys():
+                    predictions_evc_test[key] = predictions_evc_test[key][:step]
+                    predictions_adm_test[key] = predictions_adm_test[key][:step]
 
-                predictions_cls = [item.tolist() for item in feature_set_classical[:step]]
-                predictions_classic = {'GDSF': predictions_cls,
-                                       'LRU': predictions_cls,
-                                       'Oracle': predictions_cls}
-
-                bool_array = [[train_eviction and not evc_classical, train_admission and not adm_classical]] * 2
-
-                states_adm, actions_adm, rewards_adm = [], [], []
-                states, actions, rewards = [], [], []
-
-                repetitions = len(bool_array)
-
-                drop = True
+                for key in predictions_classic_evc.keys():
+                    predictions_classic_evc[key] = predictions_classic_evc[key][:step]
+                    predictions_classic_adm[key] = predictions_classic_adm[key][:step]
 
                 amlc = {}
                 for key in algorithms_ml.keys():
@@ -787,10 +854,20 @@ class GameEnvironment:
                                                 acc,
                                                 predictions_adm_test,
                                                 predictions_evc_test,
-                                                predictions_classic,
+                                                predictions_classic_adm,
+                                                predictions_classic_evc,
                                                 current_rows[:step],
                                                 verbose=True,
                                                 base_iteration=base_iteration)
+
+                bool_array = [[train_eviction and not evc_classical, train_admission and not adm_classical]] * 1
+
+                states_adm, actions_adm, rewards_adm = [], [], []
+                states, actions, rewards = [], [], []
+
+                repetitions = len(bool_array)
+
+                drop = True
 
                 for repetition in range(repetitions):
                     local_train_eviction, local_train_admission = bool_array[repetition]
@@ -806,19 +883,21 @@ class GameEnvironment:
                         steps = min(n_threads, n_sessions - i)
                         threads = [None] * steps
                         results = [None] * steps
-                        for j in range(min(n_threads,  steps)):
-                            threads[j] = threaded(generate_session_continious)(
+                        for thread_number in range(min(n_threads,  steps)):
+                            threads[thread_number] = threaded(generate_session_continious)(
                                 predictions_evc,
                                 predictions_adm,
                                 current_rows,
                                 algorithm,
                                 eviction_deterministic=not local_train_eviction,
                                 collect_eviction=local_train_eviction,
+                                eviction_defined=evc_classical,
                                 admission_deterministic=not local_train_admission,
-                                collect_admission=local_train_admission)
+                                collect_admission=local_train_admission,
+                                admission_defined=adm_classical)
 
-                        for j in range(min(n_threads, steps)):
-                            results[j] = threads[j].result_queue.get()
+                        for thread_number in range(min(n_threads, steps)):
+                            results[thread_number] = threads[thread_number].result_queue.get()
                         if len(sessions) > 200:
                             mr = np.percentile([item[4] for item in sessions], 75)
                             results = [item for item in results if item[4] > mr]
@@ -862,7 +941,7 @@ class GameEnvironment:
                         adm_distribution_history = []
 
                         v = self.model_admission.fit(feature_set[elite_states], s_actions_adm[elite_actions],
-                                                 epochs=epochs, batch_size=batch_size, verbose=1, shuffle=True)
+                                                     epochs=epochs, batch_size=batch_size, verbose=1, shuffle=True)
                         adm_acc_history.append(v.history['acc'][0])
 
                         print 'Admission accuracy :', 100 * np.mean(adm_acc_history)
@@ -890,7 +969,8 @@ class GameEnvironment:
                             indicies = range(len(elite_actions))
                         else:
                             indicies = np.random.choice(range(len(elite_actions)), 100000, replace=False)
-                        evc_unique_sampled = get_unique_dict(elite_actions[indicies], range(self.last_dim))
+
+                        evc_unique_sampled = get_unique_dict(elite_actions[indicies], range(predictions_evc.shape[1]))
                         evc_distribution_history.append(np.asarray(evc_unique_sampled))
                         evc_unique_sampled = np.sum(evc_distribution_history, axis=0) * 1. / \
                                              len(evc_distribution_history)
@@ -952,10 +1032,14 @@ class GameEnvironment:
                         mean_reward_eviction,
                         percentile_eviction)
 
-                predictions_evc_test = {'ML': [item.tolist() for item in predictions_evc[:step]],
-                                        'DET ML': [item.tolist() for item in predictions_evc[:step]]}
-                predictions_adm_test = {'ML': [item.tolist() for item in predictions_adm[:step]],
-                                        'DET ML': [item.tolist() for item in predictions_adm[:step]]}
+                if not evc_classical:
+                    predictions_evc_test = {'ML': [compute_rating(item, predictions_evc.shape[1])
+                                                   for item in vectorized(predictions_evc[:step])],
+                                            'DET ML': [np.argmax(item) for item in predictions_evc[:step]]}
+
+                if not adm_classical:
+                    predictions_adm_test = {'ML': vectorized(predictions_adm[:step]),
+                                            'DET ML': [np.argmax(item) for item in predictions_adm[:step]]}
 
                 for key in algorithms_ml.keys():
                     algorithms_ml[key].reset()
@@ -966,7 +1050,8 @@ class GameEnvironment:
                                                 algorithms_classic,
                                                 predictions_adm_test,
                                                 predictions_evc_test,
-                                                predictions_classic,
+                                                predictions_classic_adm,
+                                                predictions_classic_evc,
                                                 current_rows[:step],
                                                 verbose=True,
                                                 base_iteration=base_iteration)
@@ -1038,8 +1123,8 @@ class GameEnvironment:
     def iterate_dataset_over_all(filenames, skip):
         for fname in filenames[skip:]:
             names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'log_time',
-                     'exp_recency', 'exp_log']
-            types = [int, int, int, int, int, int, float, float]
+                     'exp_recency', 'exp_log']#, 'future']
+            types = [int, int, int, int, int, int, float, float]#, float]
             hdlr = open(fname, 'r')
 
             for line in hdlr:

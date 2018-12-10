@@ -21,29 +21,17 @@ using std::min;
 
 namespace p = boost::python;
 
-CacheSim::CacheSim(uint64_t _cache_size, uint64_t _refresh_period):
-	deterministic_eviction(false),
-	deterministic_admission(false),
+CacheSim::CacheSim(uint64_t _cache_size):
 	prediction_updated_eviction(false),
 	prediction_updated_admission(false),
-	latest_prediction_answer_eviction(0),
-	latest_prediction_answer_admission(0),
+	refresh_period(0),
 	used_space(0),
     L(0),
-	exponential_hit_rate(0),
 	hits(0),
 	misses(0),
 	byte_hits(0),
 	byte_misses(0),
-	refresh_period(_refresh_period),
-	admission_hits(0),
-	admission_misses(0),
 	cache_size(_cache_size),
-	total_rating(0),
-	eviction_hits_rating(0),
-	eviction_misses_rating(0),
-	eviction_byte_hits_rating(0),
-	eviction_byte_misses_rating(0),
 	is_ml_eviction(false)
 {
     std::random_device device;
@@ -64,24 +52,6 @@ void CacheSim::reset() {
     byte_hits = 0;
 	byte_misses = 0;
 
-	exponential_hit_rate = 0;
-
-	eviction_hits_rating = 0;
-	eviction_misses_rating = 0;
-
-	eviction_byte_hits_rating = 0;
-	eviction_byte_misses_rating = 0;
-
-	prediction_updated_eviction = false;
-	prediction_updated_admission = false;
-
-	latest_prediction_answer_eviction = 0;
-	latest_prediction_answer_admission = 0;
-
-    admission_hits = 0;
-    admission_misses = 0;
-	hits_set = unordered_set<uint64_t>();
-	misses_set = unordered_set<uint64_t>();
 }
 
 double CacheSim::hit_rate() {
@@ -92,31 +62,11 @@ double CacheSim::byte_hit_rate() {
     return double(byte_hits) / double(byte_hits + byte_misses);
 }
 
-double CacheSim::exp_hit_rate() {
-    return exponential_hit_rate;
-}
-
 uint64_t CacheSim::free_space() {
     return cache_size - used_space;
 }
 
-double CacheSim::get_admission_reward() {
-    return double(admission_hits) / (admission_hits + admission_misses);
-}
-
-int64_t CacheSim::get_eviction_reward() {
-    return 0;
-}
-
-double CacheSim::eviction_rating() {
-    return eviction_hits_rating / (eviction_hits_rating + eviction_misses_rating);
-}
-
-double CacheSim::byte_eviction_rating() {
-    return eviction_byte_hits_rating / (eviction_byte_hits_rating + eviction_byte_misses_rating);
-}
-
-bool CacheSim::decide(p::dict request, p::list& eviction_features, p::list& admission_features) {
+bool CacheSim::decide(p::dict request, double eviction_rating, bool admission_decision) {
     prediction_updated_eviction = false;
     prediction_updated_admission = false;
 
@@ -131,74 +81,41 @@ bool CacheSim::decide(p::dict request, p::list& eviction_features, p::list& admi
 	if (lit != cache.end()) {
 		hits += 1;
 		byte_hits += size;
-		exponential_hit_rate = WINDOW * exponential_hit_rate + 1 - WINDOW;
 
-		if (is_ml_eviction && updates[id] < refresh_period) {
-            updates[id]++;
-            ratings.erase(lit->second);
-		    cache[id] = ratings.emplace(L + latest_mark[id], id);
-            prediction_updated_eviction = false;
-            return true;
+		if (is_ml_eviction) {
+		    if (updates[id] < refresh_period) {
+                updates[id]++;
+                ratings.erase(lit->second);
+		        cache[id] = ratings.emplace(L + latest_mark[id], id);
+                prediction_updated_eviction = false;
+                return true;
+            } else {
+                updates[id] = 0;
+            }
         }
-
-        double old_rating = lit->second->first;
-        double estimation = predict_eviction(eviction_features);
 
         //if (!deterministic_eviction && is_ml_eviction && (distr(generator) < 0.2)) {
         // (old_rating > (L + estimation)) FOR MAX SELECTION prediction_updated_eviction = false
         // (distr(generator) < std::pow(2, -1 * std::fabs(std::log2(latest_mark[id]) - std::log2(estimation)))) FOR RANDOM
         //if (is_ml_eviction && ((L - (old_rating - latest_mark[id])) < 128)) {
 
-        if (is_ml_eviction) {
-            updates[id] = 0;
-        }
-
-        double rating = L + estimation;
-
-        latest_mark[id] = estimation;
-
+        double rating = L + eviction_rating;
+        latest_mark[id] = eviction_rating;
         ratings.erase(lit->second);
 		cache[id] = ratings.emplace(rating, id);
+		prediction_updated_eviction = true;
 		return true;
 	}
 
 	misses += 1;
 	byte_misses += size;
-	eviction_misses_rating += 1;
-	eviction_byte_misses_rating += size;
-	exponential_hit_rate = WINDOW * exponential_hit_rate;
 
-	produce_new_cache_state(request, eviction_features, admission_features);
+	prediction_updated_admission = true;
+	prediction_updated_eviction = true;
+
+	produce_new_cache_state(request, eviction_rating, admission_decision);
+
 	return false;
-}
-
-uint64_t CacheSim::argmax(vector<double> data) {
-    double cmax = 0;
-    uint64_t index_max = 0;
-	for(uint64_t i = 0; i < data.size(); i++) {
-		if (cmax < data[i]) {
-			cmax = data[i];
-			index_max = i;
-		}
-	}
-	return index_max;
-}
-
-uint64_t CacheSim::sample(std::vector<double> distribution) {
-	double target = distr(generator);
-	double summary = 0;
-	double total = 0;
-		for (uint64_t i = 0; i < distribution.size(); i++) {
-		total += distribution[i];
-	}
-	target *= total;
-	for (uint64_t i = 0; i < distribution.size(); i++) {
-		summary += distribution[i];
-		if (summary >= target) {
-			return i;
-		}
-	}
-	return distribution.size() - 1;
 }
 
 p::dict CacheSim::get_ratings() {
@@ -215,11 +132,4 @@ void CacheSim::set_ratings(p::dict &_ratings) {
     for(auto it = final_map.begin(); it != final_map.end(); it++) {
         cache[it->first] = ratings.emplace(it->second, it->first);
     }
-}
-
-p::dict CacheSim::get_sizes() {
-    return to_py_dict(sizes);
-}
-void CacheSim::set_sizes(p::dict &_sizes) {
-    sizes = to_std_map<uint64_t, uint64_t>(_sizes);
 }

@@ -12,7 +12,7 @@ def iterate_dataset(filepath):
                  if isfile(join(filepath, f)) and '.csv' in f and 'lock' not in f]
     filenames = sorted(filenames, key=lambda x: x[1])
     filenames = [item[0] for item in filenames]
-    for fname in reversed(filenames[:20]):
+    for fname in reversed(filenames[:10]):
         names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'log_time',
                  'exp_recency', 'exp_log']
         types = [int, int, int, int, int, int, float, float]
@@ -26,7 +26,8 @@ def iterate_dataset(filepath):
         yield False, fname.replace(filepath, '')
 
 
-parser = argparse.ArgumentParser(description='Tool to fix size issue into the source dataset')
+parser = argparse.ArgumentParser(description='Collect future data')
+parser.add_argument('-r', "--region", type=str, default='china', help="Data region")
 #parser.add_argument("data_path", type=str, help="Path to the source data")
 #parser.add_argument("output_path", type=str, help="Path to source csv")
 
@@ -42,16 +43,22 @@ computed_ratings_and_time = {}
 
 save_time = None
 
-forget_lambda = 0.999997
+forget_lambda = 0.01 ** (1.0/100000)
+
+print 'Gamma', forget_lambda
+
+normalizer = 1 / (1 - forget_lambda)
 
 history = []
 
-for go, row in iterate_dataset('data/china_featured/'):
+region = args.region
+
+for go, row in iterate_dataset('data/' + region + '_featured/'):
     if logical_time % 1000 == 0:
         sys.stdout.write('\rIteration ' + str(logical_time) + " " + str(len(computed_ratings_and_time.keys())))
         sys.stdout.flush()
     if not go:
-        ofname = open('data/china_rewarded/' + row, 'w')
+        ofname = open('data/' + region + '_rewarded/' + row, 'w')
         print ''
         for lrow, reward in tqdm(reversed(history), total=len(history)):
             data = [lrow['timestamp'], lrow['id'], lrow['size'], lrow['frequency'], lrow['lasp_app'], lrow['log_time'],
@@ -65,10 +72,10 @@ for go, row in iterate_dataset('data/china_featured/'):
     try:
         v, lt = computed_ratings_and_time[rid]
         v = 1 + v * (forget_lambda ** (logical_time - lt))
-        computed_ratings_and_time[rid] = (v, logical_time)
     except:
-        computed_ratings_and_time[rid] = (1, logical_time)
-        v = 1
+        v = 0
+    computed_ratings_and_time[rid] = (v, logical_time)
+
     if logical_time % lookup_period == 0:
         remove_keys = []
         for key in computed_ratings_and_time.keys():

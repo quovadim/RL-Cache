@@ -37,4 +37,4 @@ if True:
     print 'Loading pretrained from', 'models/adm_' + args.networks
     env.model_admission.load_weights('models/adm_' + args.networks)
 
-env.test_adm_infinite(iterations, 1000 * args.period, filenames, 0, args.filename)
+env.test_adm_infinite(iterations, args.period, filenames, 0, args.filename)

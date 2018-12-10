@@ -28,7 +28,7 @@ graph_data = {}
 for filename in filenames:
     od = pickle.load(open(filename, 'r'))
     for key in od.keys():
-        if key == 'time':
+        if key == 'time' or key == 'flow':
             continue
         if key not in graph_data.keys():
             graph_data[key] = []

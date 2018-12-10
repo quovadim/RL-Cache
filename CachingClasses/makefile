@@ -14,40 +14,20 @@ interface: CacheSim.o
 CacheSim.o: CacheSim.cpp
 	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c CacheSim.cpp
 
-ml: CacheMLSim.o
-	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o CacheMLSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o CacheMLSim.so
-CacheMLSim.o: CacheMLSim.cpp
-	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c CacheMLSim.cpp
+ml: MLSim.o
+	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o MLSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o MLSim.so
+MLSim.o: MLSim.cpp
+	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c MLSim.cpp
 
-adm: CacheMLSimAdm.o
-	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o CacheMLSimAdm.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o CacheMLSimAdm.so
-CacheMLSimAdm.o: CacheMLSimAdm.cpp
-	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c CacheMLSimAdm.cpp
-
-mllru: CacheMLSimAdmLRU.o
-	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o CacheMLSimAdmLRU.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o CacheMLSimAdmLRU.so
-CacheMLSimAdmLRU.o: CacheMLSimAdmLRU.cpp
-	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c CacheMLSimAdmLRU.cpp
+gd: GDSim.o
+	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o GDSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o GDSim.so
+GDSim.o: GDSim.cpp
+	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c GDSim.cpp
 
 lru: LRUSim.o
 	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o LRUSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o LRUSim.so
 LRUSim.o: LRUSim.cpp
 	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c LRUSim.cpp
-
-gdsf: GDSFSim.o
-	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o GDSFSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o GDSFSim.so
-GDSFSim.o: GDSFSim.cpp
-	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c GDSFSim.cpp
-
-oracle: OracleSim.o
-	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o OracleSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o OracleSim.so
-OracleSim.o: OracleSim.cpp
-	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c OracleSim.cpp
-
-s4lru: S4LRUSim.o
-	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o S4LRUSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o S4LRUSim.so
-S4LRUSim.o: S4LRUSim.cpp
-	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS)-c S4LRUSim.cpp
 
 clean:
 	rm *.so
@@ -59,10 +39,7 @@ copy:
 all:
 	make interface
 	make ml
-	make adm
-	make mllru
+	make gd
 	make lru
-	make gdsf
-	make oracle
 	make copy
 

@@ -15,7 +15,7 @@ def iterate_dataset(filepath):
 
 parser = argparse.ArgumentParser(description='Tool to fix size issue into the source dataset')
 parser.add_argument("data_path", type=str, help="Path to the source data")
-parser.add_argument("output_path", type=str, help="Path to source csv")
+parser.add_argument("output_path", type=str, help="Path to output data")
 parser.add_argument("output_file_storage", type=str, help="File that contains list of output files")
 
 args = parser.parse_args()

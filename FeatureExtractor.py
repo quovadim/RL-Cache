@@ -86,7 +86,7 @@ class PacketFeaturer:
     def get_packet_features_classical(self, packet):
         feature_vector = [float(packet['frequency']) / (float(packet['size'])),
                           packet['timestamp'], self.observation_flag(packet),
-                          float(packet['frequency'])]
+                          float(packet['frequency']) * (float(packet['size']))]
         return np.asarray(feature_vector)
 
     def get_packet_features_pure(self, packet):

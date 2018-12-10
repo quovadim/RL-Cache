@@ -1,10 +1,18 @@
-#include "LRUSim.h"
+#include "GDSim.h"
+#include <math.h>
+#include <iostream>
+#include <unistd.h>
 
-LRUSimulator::LRUSimulator(uint64_t _cache_size) :
+using std::cerr;
+using std::endl;
+
+GDSimulator::GDSimulator(uint64_t _cache_size):
     CacheSim(_cache_size)
-{}
+{
+    is_ml_eviction = true;
+}
 
-void LRUSimulator::produce_new_cache_state(p::dict &request, double eviction_rating, bool admission_decision) {
+void GDSimulator::produce_new_cache_state(p::dict &request, double eviction_rating, bool admission_decision) {
 	uint64_t size = p::extract<uint64_t>(request.get("size"));
 
 	if (!admission_decision) {
@@ -14,6 +22,7 @@ void LRUSimulator::produce_new_cache_state(p::dict &request, double eviction_rat
 	while (used_space + size > cache_size) {
 	    auto min_elem = ratings.begin();
 
+	    L = min_elem->first;
 	    used_space -= sizes[min_elem->second];
 
 		cache.erase(min_elem->second);
@@ -28,7 +37,7 @@ void LRUSimulator::produce_new_cache_state(p::dict &request, double eviction_rat
 
     latest_mark[id] = prediction;
 
-    double rating = prediction;
+    double rating = L + prediction;
     total_rating += rating;
     cache[id] = ratings.emplace(rating, id);
 	sizes.insert(pair<uint64_t, uint64_t>(id, size));

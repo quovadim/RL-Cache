@@ -6,6 +6,7 @@ import numpy as np
 
 parser = argparse.ArgumentParser(description='Algorithm trainer')
 parser.add_argument("networks", type=str, help="Network name suffix")
+#parser.add_argument("config", type=str, help="Configuration file for training")
 parser.add_argument('-s', '--size', type=int, default=1228, help="Cache size")
 parser.add_argument('-r', "--region", type=str, default='china', help="Data region")
 parser.add_argument('-t', '--threads', type=int, default=10, help="Number of threads")
@@ -45,4 +46,4 @@ if args.preload_admission:
 
 n_threads = args.threads
 
-env.run_and_train_ml(args.iterations, 20, iterations, 200000, filenames, 0, n_threads=args.threads)
+env.run_and_train_ml(args.iterations, 10, iterations, 50000, filenames, 0, n_threads=args.threads)

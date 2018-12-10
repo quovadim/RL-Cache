@@ -23,7 +23,7 @@ import keras
 
 from GameEnvironment import GameEnvironment
 
-filepath = 'data/' + args.region + '_featured/'
+filepath = 'data/' + args.region + '_rewarded/'
 filenames = [(join(filepath, f), int(f.replace('.csv', ''))) for f in listdir(filepath)
              if isfile(join(filepath, f)) and '.csv' in f and 'lock' not in f]
 filenames = sorted(filenames, key=lambda x: x[1])
@@ -40,4 +40,4 @@ if False:
     print 'Loading pretrained from', 'models/adm_' + args.networks
     env.model_admission.load_weights('models/adm_' + args.networks)
 
-env.test_ml_infinite(iterations, 1000 * args.period, filenames, 0, args.filename)
+env.test_ml_infinite(iterations, args.period, filenames, 0, args.filename)
