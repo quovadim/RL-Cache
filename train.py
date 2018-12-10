@@ -23,12 +23,6 @@ if args.cpu:
     os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-filepath = configuration['data folder']
-filenames = [(join(filepath, f), int(f.replace('.csv', ''))) for f in listdir(filepath)
-             if isfile(join(filepath, f)) and '.csv' in f and 'lock' not in f]
-filenames = sorted(filenames, key=lambda x: x[1])
-filenames = [item[0] for item in filenames]
-
 env = GameEnvironment(configuration)
 
 if args.preload_eviction:
@@ -40,4 +34,4 @@ if args.preload_admission:
 
 n_threads = args.threads
 
-env.train(filenames, args.networks, n_threads=args.threads)
+env.train(args.networks, n_threads=args.threads)

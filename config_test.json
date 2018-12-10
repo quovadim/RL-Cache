@@ -1,14 +1,20 @@
 {
-	"cache size": 128,
+	"cache size": 10240,
 	"data folder": "data/china_featured",
-
+	
 	"lambda features": 0.99,
 
 	"batch size": 4096,
 
+	"statistics":
+		{
+			"statistics": "auxiliary/features_primary.npy",
+			"warmup": 1000000,
+			"split step": 1
+		},
+
 	"model":
 		{
-
 			"wing size": 3,
 			
 			"dropout rate": 0.0,
@@ -30,29 +36,39 @@
 		"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "ML-ML-RNG", "ML-ML-DET"],
 		"period": 360,
 		"requests max": 50000000,
-		"reset": true
+		"reset": true,
+		"alpha": 1
 		},
 	"training":
 		{
-			"target": "ML-ML",
+			"target": "AL-ML",
 
-			"requests max": 20000000,
-			"samples": 450,
+			"session configuration":
+					{
+						"collect discounted": false,
+						"randomness change": false,
+						"point of change": 0,
+						"gamma": 0.01,
+						"alpha": 1
+					},
+
+			"requests max": 2000000,
+			"samples": 150,
 
 			"percentile admission": 95,
 			"percentile eviction": 95,
 
 			"epochs": 1,
-			"warmup": 50000,
-			"runs": 10,
+			"warmup": 100000,
+			"runs": 2,
 			"repetitions": 1,
 			"drop": true,
 			
 			"overlap": 0,
-			"period": 50000,
+			"period": 100000,
 
-			"refresh policy": "static",
-			"refresh value": 5,
+			"refresh policy": "monotonic",
+			"refresh value": 10,
 
 			"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle"],
 

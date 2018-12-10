@@ -1,62 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 import sys
-
-
-def gen_feature_set(rows, featurer, forget_lambda, memory_vector=None, classical=False, pure=False):
-    feature_matrix = []
-    featurer.reset()
-    counter = 0
-    memory_features = []
-    if memory_vector is None and not classical:
-        memory_vector = np.zeros(featurer.dim)
-
-    classical_substr = 'ML'
-    if classical:
-        classical_substr = 'Classical'
-    pure_substr = ''
-    if classical and pure:
-        pure_substr = 'Pure'
-    types_substr = classical_substr + ' ' + pure_substr
-    print 'Generating', len(rows), 'features', types_substr
-
-    for row in tqdm(rows):
-        featurer.update_packet_state(row)
-        if classical:
-            if pure:
-                data = featurer.get_packet_features_pure(row)
-            else:
-                data = featurer.get_packet_features_classical(row)
-        else:
-            data = featurer.get_packet_features(row)
-        feature_matrix.append(data)
-        featurer.update_packet_info(row)
-        counter += 1
-
-    if not classical:
-        for item in feature_matrix:
-            memory_features.append(memory_vector)
-            memory_vector = memory_vector * forget_lambda + item * (1 - forget_lambda)
-        memory_features = np.asarray(memory_features)
-        feature_matrix = np.concatenate([feature_matrix, memory_features], axis=1)
-        return feature_matrix, memory_vector
-
-    return np.asarray(feature_matrix)
-
-
-def iterate_dataset(filenames):
-    for fname in filenames:
-        names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'log_time',
-                'exp_recency', 'exp_log']#, 'future']
-        types = [int, int, int, int, int, int, float, float]#, float]
-        hdlr = open(fname, 'r')
-
-        for line in hdlr:
-            lines_converted = line.split(' ')
-            lines_converted = [types[i](lines_converted[i]) for i in range(len(types))]
-            yield dict(zip(names, lines_converted))
-
-        hdlr.close()
+from environment_aux import *
 
 
 def collect_features(ofname, t_max, filenames, pure=None, verbose=True):
@@ -111,40 +56,30 @@ def collect_features(ofname, t_max, filenames, pure=None, verbose=True):
             ofile.close()
 
 
-def split_feature(feature):
-    perc_steps = 1
-    percs = [i * 100 / perc_steps for i in range(perc_steps + 1)]
-    percentiles = [np.percentile(feature, item) for item in percs]
-    percentiles[0] -= 1
-    percentiles[len(percentiles) - 1] += 1
-    percentiles = list(np.unique(percentiles))
-    percentiles = sorted(percentiles)
-    return [(percentiles[i-1], percentiles[i]) for i in range(1, len(percentiles))]
-
-
 class PacketFeaturer:
-    def __init__(self, load_name=None):
+    def __init__(self, config):
         self.logical_time = 0
         self.real_time = 0
         self.was_seen = []
-        self.names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'exp_recency', 'log_time', 'exp_log']
-        fake_request = dict(zip(self.names, [1] * len(self.names)))
+        names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'exp_recency', 'log_time', 'exp_log']
+        fake_request = dict(zip(names, [1] * len(names)))
         self.fnum = len(self.get_packet_features_pure(fake_request))
         self.statistics = []
         print 'Real features', self.fnum
-        if load_name is not None:
-            feature_set = np.asarray(np.load(load_name))
-            feature_set = feature_set[1000000:2000000, :self.fnum]
+        if config is not None:
+            feature_set = np.asarray(np.load(config['statistics']))
+            feature_set = feature_set[config['warmup']:, :self.fnum]
+
             self.feature_mappings = []
+
             for i in range(self.fnum):
-                self.feature_mappings.append(split_feature(feature_set[:, i]))
+                self.feature_mappings.append(split_feature(feature_set[:, i], config['split step']))
                 statistics_arrays = [[]] * len(self.feature_mappings[i])
                 for item in tqdm(feature_set[:, i]):
                     feature_index = self.get_feature_vector(i, item, return_index=True)
                     statistics_arrays[feature_index].append(item)
                 statistics_vector = [(np.mean(item), np.std(item)) for item in statistics_arrays]
                 self.statistics += statistics_vector
-
             self.dim = len(self.get_packet_features(fake_request))
         else:
             self.dim = 0
