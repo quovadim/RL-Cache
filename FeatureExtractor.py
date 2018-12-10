@@ -4,56 +4,41 @@ import sys
 from environment_aux import *
 
 
-def collect_features(ofname, t_max, filenames, pure=None, verbose=True):
+def collect_features(output_filename, t_max, filenames):
     feature_matrix = []
     counter = 0
 
-    featurer = PacketFeaturer(pure)
+    featurer = PacketFeaturer(None)
 
-    if pure is not None:
-        ofile = open(ofname, 'w')
-
-    data = []
+    output_file = open(output_filename, 'w')
 
     try:
         for row in iterate_dataset(filenames):
-            if pure is None and counter % 500000 == 0:
-                np.save(ofname, feature_matrix)
+            if counter % 50000 == 0:
+                for item in feature_matrix:
+                    output_file.write(' '.join([str(element) for element in item]) + '\n')
+                feature_matrix = []
             if counter > t_max:
                 break
             featurer.update_packet_state(row)
-            if pure is None:
-                data = featurer.get_packet_features_pure(row).tolist()
-            else:
-                data = featurer.get_packet_features(row).tolist()
-            data.append(row['timestamp'])
-            data.append(row['id'])
-            data.append(row['size'])
+            data = featurer.get_packet_features_pure(row).tolist()
             feature_matrix.append(np.asarray(data))
-            if verbose:
-                if counter % 5000 == 0:
-                    d = featurer.dim
-                    if pure:
-                        d = featurer.fnum
-                    str_formatted = ' '.join(['{:^7.4f}' for _ in range(d)])
-                    str_formatted = '{:10d}  ' + str_formatted
-                    means = np.mean(feature_matrix, axis=0).tolist()
-                    str_formatted = str_formatted.format(*([counter] + means))
-                    sys.stdout.write('\r' + str_formatted)
-                    sys.stdout.flush()
-            if pure is not None and counter % 50000 == 0:
-                for line in feature_matrix:
-                    ofile.write(' '.join([str(item) for item in line]) + '\n')
-                feature_matrix = []
+            if counter % 5000 == 0:
+                d = featurer.fnum
+                str_formatted = ' '.join(['{:^7.4f}' for _ in range(d)])
+                str_formatted = '{:10d}  ' + str_formatted
+                means = np.mean(feature_matrix, axis=0).tolist()
+                str_formatted = str_formatted.format(*([counter] + means))
+                sys.stdout.write('\r' + str_formatted)
+                sys.stdout.flush()
             featurer.update_packet_info(row)
             counter += 1
-        if verbose:
-            print ''
+        print ''
     except KeyboardInterrupt:
-        if pure is None:
-            np.save(ofname, feature_matrix)
-        else:
-            ofile.close()
+        pass
+    for item in feature_matrix:
+        output_file.write(' '.join([str(element) for element in item]) + '\n')
+    output_file.close()
 
 
 class PacketFeaturer:
@@ -67,8 +52,11 @@ class PacketFeaturer:
         self.statistics = []
         print 'Real features', self.fnum
         if config is not None:
-            feature_set = np.asarray(np.load(config['statistics']))
-            feature_set = feature_set[config['warmup']:, :self.fnum]
+            data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
+            feature_set = np.zeros(shape=(len(data_raw), self.fnum))
+            print 'Loading data'
+            for i in tqdm(range(feature_set.shape[0])):
+                feature_set[i] = np.array([float(item) for item in data_raw[i].split(' ')])
 
             self.feature_mappings = []
 
@@ -115,7 +103,7 @@ class PacketFeaturer:
             self.was_seen = self.was_seen[1:]
 
     def observation_flag(self, packet):
-        return 1 if packet['frequency'] != 1 else 0
+        return packet['frequency'] != 1
 
     def get_packet_features_classical(self, packet):
         feature_vector = [float(packet['frequency']) / (float(packet['size'])),

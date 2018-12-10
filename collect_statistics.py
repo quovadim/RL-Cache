@@ -1,11 +1,10 @@
 import argparse
-from GameEnvironment import GameEnvironment
+from FeatureExtractor import collect_features
 from os import listdir
 from os.path import isfile, join
 
 parser = argparse.ArgumentParser(description='Tool to collect feature statistics')
 parser.add_argument("filename", type=str, help="Output filename")
-parser.add_argument('-p', '--pure', type=str, default=None, help="Collect pure features")
 parser.add_argument('-r', "--region", type=str, default='china', help="Data region")
 parser.add_argument('-i', '--iterations', type=int, default=50, help="Number of iterations per epoch")
 
@@ -17,4 +16,4 @@ filenames = [(join(filepath, f), int(f.replace('.csv', ''))) for f in listdir(fi
 filenames = sorted(filenames, key=lambda x: x[1])
 filenames = [item[0] for item in filenames]
 
-GameEnvironment.collect_features('auxiliary/' + args.filename, 1000 * args.iterations, filenames, 0, pure=args.pure)
+collect_features('auxiliary/' + args.filename, 1000 * args.iterations, filenames)

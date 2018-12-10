@@ -1,5 +1,5 @@
 {
-	"cache size": 16,
+	"cache size": 1024,
 	"data folder": "data/china_featured",
 	
 	"lambda features": 0.99,
@@ -35,7 +35,7 @@
 		{
 		"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "ML-ML-RNG", "ML-ML-DET"],
 		"period": 360,
-		"requests max": 50000000,
+		"requests max": 200000000,
 		"reset": true,
 		"alpha": 0
 		},
@@ -52,25 +52,25 @@
 						"alpha": 0
 					},
 
-			"requests max": 2000000,
-			"samples": 150,
+			"requests max": 10000000,
+			"samples": 450,
 
 			"percentile admission": 95,
 			"percentile eviction": 95,
 
 			"epochs": 1,
-			"warmup": 100000,
-			"runs": 2,
+			"warmup": 500000,
+			"runs": 10,
 			"repetitions": 1,
 			"drop": true,
 			
 			"overlap": 0,
-			"period": 100000,
+			"period": 300000,
 
 			"refresh policy": "monotonic",
 			"refresh value": 10,
 
-			"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle"],
+			"algorithms": ["AL-GDSF", "SH-GDSF"],
 
 			"iterative": false,
 			"start iteration": "E",

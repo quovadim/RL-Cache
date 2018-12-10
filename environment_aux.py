@@ -89,14 +89,16 @@ def name_to_class(name):
         class_type = MLSimulator
         eviction_random = True
         eviction_index = -1
-    if name_eviction == 'ML GD':
+    if name_eviction == 'MLGD':
         class_type = GDSimulator
         eviction_random = True
         eviction_index = -1
-    if name_eviction == 'ML LRU':
+    if name_eviction == 'MLLRU':
         class_type = LRUSimulator
         eviction_random = True
         eviction_index = -1
+
+    assert class_type is not None
 
     return class_type, admission_random, admission_index, eviction_random, eviction_index, randomness_type
 
@@ -229,10 +231,11 @@ def train_model(percentile,
     v = model.fit(features_embedding[elite_states], answers_embedding[elite_actions],
                   epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
 
-    print 'A: {:7.4f}% L: {:7.5f} M: {:7.4f}% P: {:7.4f}%'.format(100 * np.mean(v.history['acc'][0]),
-                                                                 np.mean(v.history['loss'][0]),
-                                                                 100 * np.mean(rewards),
-                                                                 100 * percentile_value)
+    print 'Accuracy: {:7.4f}% Loss: {:7.5f} Mean: {:7.4f}% Percentile: {:7.4f}%'.format(
+        100 * np.mean(v.history['acc'][0]),
+        np.mean(v.history['loss'][0]),
+        100 * np.mean(rewards),
+        100 * percentile_value)
 
 
 def test_algorithms(algorithms,
@@ -266,7 +269,7 @@ def test_algorithms(algorithms,
         if counter % 100 == 0 or counter == len(rows) - 1:
             names = keys
             values = [100 * metric(algorithms[alg], alpha) for alg in keys]
-            print_string = ' | '.join(['{:^10s} {:5.2f}%' for _ in range(len(names))])
+            print_string = ' |'.join(['{:^14s} {:6.2f}%' for _ in range(len(names))])
             print_string = 'Iteration {:10d} ' + print_string
             subst_vals = []
             for i in range(len(names)):
@@ -396,16 +399,7 @@ def gen_feature_set(rows, featurer, forget_lambda, memory_vector=None, classical
     if memory_vector is None and not classical:
         memory_vector = np.zeros(featurer.dim)
 
-    classical_substr = 'ML'
-    if classical:
-        classical_substr = 'Classical'
-    pure_substr = ''
-    if classical and pure:
-        pure_substr = 'Pure'
-    types_substr = classical_substr + ' ' + pure_substr
-    print 'Generating', len(rows), 'features', types_substr
-
-    for row in tqdm(rows):
+    for row in rows:
         featurer.update_packet_state(row)
         if classical:
             if pure:

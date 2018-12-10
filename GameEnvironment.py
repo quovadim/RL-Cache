@@ -21,7 +21,7 @@ class GameEnvironment:
         filenames = sorted(filenames, key=lambda x: x[1])
         self.filenames = [item[0] for item in filenames]
 
-        self.cache_size = self.config['cache size']
+        self.cache_size = self.config['cache size'] * 1024 * 1024
 
         self.featurer = PacketFeaturer(self.config['statistics'])
 
@@ -262,8 +262,6 @@ class GameEnvironment:
                 if (skip_required and len(current_rows) != warmup_period) or \
                         (not skip_required and len(current_rows) != period):
                     continue
-
-                print 'Using', len(current_rows), 'items'
 
                 if ml_features is None:
                     ml_features, memory_vector = gen_feature_set(current_rows, self.featurer, forget_lambda,
