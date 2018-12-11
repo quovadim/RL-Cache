@@ -8,6 +8,7 @@ import pickle
 from multiprocessing import Process, Queue
 from copy import deepcopy
 import random
+from tqdm import tqdm
 
 
 def to_ts(time_diff):
@@ -245,7 +246,7 @@ def train_model(percentile,
             print 'Decreasing percentile from', percentile_value, 'to', percentile_value - 10
             percentile_value -= 10
 
-    data = sampling(predictions)
+    data = elite_actions
     unique_sampled = get_unique_dict(data, range(predictions.shape[1]))
     unique_sampled = [int(unique_sampled[i]) if i % 2 == 0 else unique_sampled[i]
                           for i in range(len(unique_sampled))]
@@ -366,6 +367,7 @@ def generate_session_continious(
         rows,
         algorithm_template,
         config,
+        change_point,
         eviction_deterministic=False,
         admission_deterministic=False,
         eviction_defined=False,
@@ -391,8 +393,13 @@ def generate_session_continious(
     if config['collect discounted']:
         reward_hits = 0
         reward_total = 0
-        gamma = config['gamma'] ** (1.0/len(rows))
-        multiplier = 1
+        if not config['change']:
+            change_length = len(rows)
+            multiplier = 1
+        else:
+            change_length = len(rows) - change_point
+            multiplier = config['initial gamma']
+        gamma = (config['gamma'] / multiplier) ** (1.0 / change_length)
 
     evc_decision_values, eviction_decisions, adm_decision_values, admission_decisions = \
         get_session_features((eviction_defined, eviction_deterministic),
@@ -409,31 +416,27 @@ def generate_session_continious(
             if hit:
                 reward_hits += multiplier * metric_funct(rows[i]['size'], 1, alpha)
             reward_total += multiplier * metric_funct(rows[i]['size'], 1, alpha)
-            multiplier *= gamma
+            if not config['change'] or i >= change_point:
+                multiplier *= gamma
 
         if exchanged:
             continue
 
-        if config['randomness change'] and i > config['point of change']:
-            eviction_deterministic = True
-            admission_deterministic = True
-            _, eviction_decisions, _, admission_decisions = \
-                get_session_features((eviction_defined, eviction_deterministic),
-                                     (admission_defined, admission_deterministic),
-                                     predictions_evc,
-                                     predictions_adm)
+        if config['change'] and i >= change_point:
+            if config['change mode'] == 'deterministic':
+                eviction_deterministic = True
+                admission_deterministic = True
+            if config['change mode'] == 'random':
+                np.random.seed(config['seed'])
+                random.seed(config['seed'])
             exchanged = True
-            continue
 
-        if config['seeded change'] and i > config['point of change']:
-            np.random.seed(config['seed'])
-            random.seed(config['seed'])
+        if exchanged:
             _, eviction_decisions, _, admission_decisions = \
                 get_session_features((eviction_defined, eviction_deterministic),
                                      (admission_defined, admission_deterministic),
                                      predictions_evc,
                                      predictions_adm)
-            exchanged = True
             continue
 
         if collect_eviction and not eviction_deterministic and not eviction_defined \
@@ -472,7 +475,11 @@ def gen_feature_set(rows, featurer, forget_lambda, memory_vector=None, classical
     if memory_vector is None and not classical:
         memory_vector = np.zeros(featurer.dim)
 
-    for row in rows:
+    iterator = rows
+    if not classical:
+        iterator = tqdm(rows)
+
+    for row in iterator:
         featurer.update_packet_state(row)
         if classical:
             if pure:
