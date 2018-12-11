@@ -151,7 +151,7 @@ def get_unique_dict(data, labels=None):
 def select_elites(states, actions, rewards, percentile, max_samples):
     percentile_value = percentile
     if percentile is not None:
-        elite_indicies = [i for i in range(len(rewards)) if rewards[i] >= percentile]
+        elite_indicies = [i for i in range(len(rewards)) if rewards[i] > percentile]
     else:
         elite_indicies = [np.argmax(rewards)]
         percentile_value = max(rewards)
@@ -227,8 +227,23 @@ def train_model(percentile,
                 max_samples,
                 label):
     if percentile is not None:
-        percentile = np.percentile(rewards, percentile)
-    elite_states, elite_actions, percentile_value = select_elites(states, actions, rewards, percentile, max_samples)
+        percentile_value = np.percentile(rewards, percentile)
+    else:
+        percentile_value = None
+    elite_states = []
+    elite_actions = []
+    percentile_est = 0
+    while not elite_states:
+        elite_states, elite_actions, percentile_est = select_elites(states, actions, rewards,
+                                                                    percentile_value, max_samples)
+        if not elite_states:
+            if percentile_value is None:
+                percentile_value = 100
+            if percentile_value <= 50:
+                print 'Percentile value dropped below 50, stop training'
+                return
+            print 'Decreasing percentile from', percentile_value, 'to', percentile_value - 10
+            percentile_value -= 10
 
     data = sampling(predictions)
     unique_sampled = get_unique_dict(data, range(predictions.shape[1]))
@@ -246,12 +261,12 @@ def train_model(percentile,
 
     print 'Samples: {:6d} Accuracy: {:7.4f}% Loss: {:7.5f} ' \
           'Mean: {:7.4f}% Median: {:7.4f}% Percentile: {:7.4f}% Max: {:7.4f}%'.format(
-        len(samples),
+        min(max_samples, len(samples)),
         100 * np.mean(v.history['acc'][0]),
         np.mean(v.history['loss'][0]),
         100 * np.mean(rewards),
         100 * np.median(rewards),
-        100 * percentile_value,
+        100 * percentile_est,
         100 * max(rewards))
 
 

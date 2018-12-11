@@ -124,9 +124,12 @@ class GameEnvironment:
         s_actions_adm = np.diag(np.ones((2,)))
 
         refresh_value = self.config['training']['refresh value']
-        warming_to_required_state = False
-        additional_warming = -1
+        warming_to_required_state = True
+        additional_warming = 0
         empty_loops = 0
+
+        if self.config['training']['iterative']:
+            runs *= 2
 
         for iteration in range(runs):
             current_rows = []
@@ -169,7 +172,10 @@ class GameEnvironment:
             algorithm_rng.refresh_period = refresh_value
             algorithm_det.refresh_period = refresh_value
 
-            print 'New iteration', iteration
+            if self.config['training']['iterative']:
+                print 'New iteration', iteration / 2
+            else:
+                print 'New iteration', iteration
 
             self.featurer.full_reset()
 
@@ -181,8 +187,8 @@ class GameEnvironment:
                 eviction_turn = 1
                 if self.config['training']['start iteration'] == 'E':
                     eviction_turn = 0
-                train_admission = iteration % 2 == eviction_turn
-                train_eviction = iteration % 2 != eviction_turn
+                train_admission = iteration % 2 != eviction_turn
+                train_eviction = iteration % 2 == eviction_turn
             else:
                 train_admission = not admission_classical
                 train_eviction = not eviction_classical
@@ -249,7 +255,7 @@ class GameEnvironment:
                     test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows, alpha,
                                     base_iteration=base_iteration, special_keys=special_keys)
 
-                    if not skip_required and warming_to_required_state:
+                    if warming_to_required_state:
                         if empty_loops == additional_warming:
                             warming_to_required_state = False
                         else:
@@ -316,8 +322,6 @@ class GameEnvironment:
                             continue
 
                 sessions = []
-                admission_skipped = not local_train_admission
-                eviction_skipped = not local_train_eviction
                 if not admission_classical:
                     if local_train_admission or repetition == 0:
                         predictions_admission = self.model_admission.predict(ml_features,
@@ -370,7 +374,7 @@ class GameEnvironment:
                     rewards_evc.append(re)
                     rewards_adm.append(ra)
 
-                if local_train_admission and np.std(rewards_adm) > 1e-6:
+                if local_train_admission:
                     train_model(percentile_admission,
                                 self.model_admission,
                                 rewards_adm,
@@ -385,10 +389,8 @@ class GameEnvironment:
                                 'Admission')
 
                     self.model_admission.save_weights('models/adm_' + output_suffix)
-                else:
-                    admission_skipped = True
 
-                if local_train_eviction and np.std(rewards_evc) > 1e-6:
+                if local_train_eviction:
                     train_model(percentile_eviction,
                                 self.model_eviction,
                                 rewards_evc,
@@ -403,11 +405,6 @@ class GameEnvironment:
                                 'Eviction')
 
                     self.model_eviction.save_weights('models/evc_' + output_suffix)
-                else:
-                    eviction_skipped = True
-
-                if admission_skipped and eviction_skipped:
-                    break
 
             decisions_adm, decisions_evc = generate_data_for_models(
                 algorithms.keys(),
@@ -422,8 +419,6 @@ class GameEnvironment:
             test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
                             base_iteration=base_iteration, special_keys=special_keys)
 
-            base_iteration += step
-
             del states_evc
             del states_adm
             del rewards_evc
@@ -431,7 +426,8 @@ class GameEnvironment:
             del actions_evc
             del actions_adm
 
-            additional_warming += 1
+            if not self.config['training']['iterative'] or iteration % 2 == 1:
+                additional_warming += 1
             warming_to_required_state = True
             empty_loops = 0
 
