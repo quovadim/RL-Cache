@@ -1,9 +1,11 @@
 from hurry.filesize import size as fsize
 from FeatureExtractor import PacketFeaturer
-from config_sanity import check_statistics_config, check_train_config, check_model_config
+from config_sanity import check_statistics_config, check_model_config
 
 from environment_aux import *
 from model import *
+
+import tensorflow as tf
 
 from tqdm import tqdm
 
@@ -100,6 +102,10 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
     config_statistics = check_statistics_config(config_model['statistics'], verbose=False)
     if config_statistics is None:
         return
+
+    np.random.seed(config['seed'])
+    random.seed(config['seed'])
+    tf.set_random_seed(config['seed'])
 
     featurer = PacketFeaturer(config_statistics)
 
@@ -228,8 +234,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
             if (skip_required and len(current_rows) != warmup_period) or \
                     (not skip_required and not warming_to_required_state and len(current_rows) != period) or \
-                    (not skip_required and warming_to_required_state and len(current_rows) !=
-                     config['refresh period'] * step):
+                    (not skip_required and warming_to_required_state and len(current_rows) != step):
                 continue
 
             if ml_features is None:
@@ -267,7 +272,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 if skip_required:
                     print 'Warming up', warmup_period
                 else:
-                    print 'Skipping', step, 'left', (additional_warming - empty_loops) * step * config['refresh period']
+                    print 'Skipping', step, 'left', (additional_warming - empty_loops) * step
 
                 test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows, alpha,
                                 base_iteration=base_iteration, special_keys=special_keys)
@@ -315,11 +320,11 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
             states_adm, actions_adm, rewards_adm = [], [], []
             states_evc, actions_evc, rewards_evc = [], [], []
+            indicies_to_remove = []
+            addition_history = []
 
             for repetition in range(repetitions):
                 local_train_eviction, local_train_admission = bool_array[repetition]
-
-                print 'Repetition', repetition + 1, 'out of', repetitions
 
                 if drop:
                     states_adm, actions_adm, rewards_adm = [], [], []
@@ -328,21 +333,19 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 else:
                     indicies_to_remove = []
                     for i in range(len(addition_history)):
-                        if repetition - addition_history[i] >= config['store period']:
+                        if (repetition - addition_history[i]) == config['store period']:
                             indicies_to_remove.append(i)
-                    for index in indicies_to_remove:
-                        try:
-                            if local_train_eviction:
-                                del states_evc[index]
-                                del actions_evc[index]
-                                del rewards_evc[index]
-                            if local_train_admission:
-                                del states_adm[index]
-                                del actions_adm[index]
-                                del rewards_adm[index]
-                            del addition_history[index]
-                        except IndexError:
-                            continue
+                    assert repetition == 0 or len(indicies_to_remove) == samples
+                    for index in sorted(indicies_to_remove, reverse=True):
+                        if local_train_eviction:
+                            del states_evc[index]
+                            del actions_evc[index]
+                            del rewards_evc[index]
+                        if local_train_admission:
+                            del states_adm[index]
+                            del actions_adm[index]
+                            del rewards_adm[index]
+                        del addition_history[index]
 
                 sessions = []
                 if not admission_classical:
@@ -360,8 +363,13 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 else:
                     predictions_eviction = decisions_evc[config['target'] + '-RNG']
 
-                for i in tqdm(range(0, samples, n_threads)):
-                    steps = min(n_threads, samples - i)
+                print 'Repetition', repetition + 1, 'out of', repetitions
+
+                samples_to_generate = samples
+                if repetition == 0 and not drop:
+                    samples_to_generate = samples * config['store period']
+                for i in tqdm(range(0, samples_to_generate, n_threads)):
+                    steps = min(n_threads, samples_to_generate - i)
                     threads = [None] * steps
                     results = [None] * steps
                     for thread_number in range(min(n_threads,  steps)):
@@ -387,15 +395,22 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                             results = [item for item in results if item[4] > dump_percentile]
                     if results:
                         sessions += results
-                        addition_history += [repetition] * len(results)
+                        if repetition == 0 and not drop:
+                            addition_history += [1 + i // samples - config['store period']] * len(results)
+                        else:
+                            addition_history += [repetition] * len(results)
 
                 for se, ae, sa, aa, re, ra in sessions:
-                    states_evc.append(se)
-                    states_adm.append(sa)
-                    actions_evc.append(ae)
-                    actions_adm.append(aa)
-                    rewards_evc.append(re)
-                    rewards_adm.append(ra)
+                    if local_train_admission:
+                        states_adm.append(sa)
+                        actions_adm.append(aa)
+                        rewards_adm.append(ra)
+                    if local_train_eviction:
+                        states_evc.append(se)
+                        actions_evc.append(ae)
+                        rewards_evc.append(re)
+
+                print 'Admission samples', len(rewards_adm), 'Eviction samples', len(rewards_evc)
 
                 if local_train_admission:
                     train_model(percentile_admission, model_admission, rewards_adm, states_adm, actions_adm,
@@ -430,6 +445,6 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
             base_iteration += step
 
         if not config['iterative'] or iteration % 2 == 1:
-            additional_warming += 1
+            additional_warming += config['refresh period']
         warming_to_required_state = True
         empty_loops = 0

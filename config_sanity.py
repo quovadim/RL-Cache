@@ -28,7 +28,7 @@ def check_single_type(name, value, type_list, verbose, tabulation, level):
     if is_exact or can_be_converted:
         if verbose:
             if is_exact:
-                print tabulation, error_levels[3], 'Field', name, 'correct with value', value
+                print tabulation, error_levels[3], 'Field', name, 'type', type(value), 'is correct'
         if not is_exact:
             print tabulation, error_levels[2], 'Field', name, 'converted from', orignal_type, 'to', target_type
     else:
@@ -38,26 +38,36 @@ def check_single_type(name, value, type_list, verbose, tabulation, level):
 
 def check_fiends(config, names, types, necessity, tabulation, verbose):
     for i in range(len(names)):
-        if necessity:
-            exact, converted, target = check_single_type(names[i], config[names[i]], types[i], verbose, tabulation, 0)
-            if not exact and converted:
-                config[names[i]] = target(config[names[i]])
-            if not exact and not converted:
+        try:
+            value = config[names[i]]
+        except KeyError:
+            if necessity[i]:
+                print tabulation, error_levels[0], names[i], 'does not exist'
                 return None
+            else:
+                print tabulation, error_levels[1], names[i], 'does not exist'
+                continue
+
+        exact, converted, target = check_single_type(names[i], value, types[i], verbose, tabulation, 0)
+        if not exact and converted:
+            config[names[i]] = target(value)
+        if not exact and not converted:
+            return None
     return config
 
 
-def check_range(name, value, interval_left, interval_right, tabulation, level, verbose, dead):
+def check_range(name, value, interval_left, interval_right, tabulation, level, verbose, dead, recommendation):
     condition_left = interval_left is not None and value < interval_left
     condition_right = interval_right is not None and value > interval_right
+    value_type = 'obligatory' if not recommendation else 'recommended'
     if condition_left:
         if dead:
-            print tabulation, error_levels[level], name, 'with value', value, 'is less than', value > interval_left
+            print tabulation, error_levels[level], name, '=', value, 'is less than', value_type, interval_left
         return False
 
     if condition_right:
         if dead:
-            print tabulation, error_levels[level], name, 'with value', value, 'is higher than', value > interval_left
+            print tabulation, error_levels[level], name, '=', value, 'is higher than', value_type, interval_right
         return False
 
     if verbose:
@@ -65,8 +75,8 @@ def check_range(name, value, interval_left, interval_right, tabulation, level, v
             interval_left = '-inf'
         if interval_right is None:
             interval_right = '+inf'
-        print tabulation, error_levels[3], name, 'with value', value, \
-            'is in interval from', interval_left, 'to', interval_right
+        print tabulation, error_levels[3], name, '=', value, \
+            'is in', value_type, 'interval from', interval_left, 'to', interval_right
 
     return True
 
@@ -109,12 +119,12 @@ def check_ranges(config, names, necessity, intervals, verbose, tabulation, level
         if necessity[i] and intervals[i] is not None:
             lf, rf, recommendations = intervals[i]
             if not check_range(names[i], config[names[i]], lf, rf, tabulation, level,
-                               verbose, True):
+                               verbose, True, False):
                 return None
             if recommendations is not None:
                 lf, rf = recommendations
                 check_range(names[i], config[names[i]], lf, rf, tabulation, level + 1,
-                            verbose, True)
+                            verbose, True, True)
     return config
 
 
@@ -414,6 +424,7 @@ def check_train_config(filename, tabulation='', verbose=True):
         "cache size",
         "target",
         "batch size",
+        "seed",
         "session configuration",
         "samples",
         "max samples",
@@ -447,6 +458,7 @@ def check_train_config(filename, tabulation='', verbose=True):
         None,
         (1, None, (32, 40960)),
         None,
+        None,
         (0, None, (75, 750)),
         (0, None, None),
         (50, 100, None),
@@ -457,7 +469,7 @@ def check_train_config(filename, tabulation='', verbose=True):
         (0, None, None),
         (0, None, None),
         None,
-        (0, None, None),
+        (1, None, None),
         None,
         (0, None, (10000, 1000000)),
         None,
@@ -476,6 +488,7 @@ def check_train_config(filename, tabulation='', verbose=True):
              [str, unicode],
              [int],
              [str, unicode],
+             [int],
              [int],
              [dict],
              [int],
@@ -503,6 +516,7 @@ def check_train_config(filename, tabulation='', verbose=True):
              [int, float]]
 
     necessity = [True,
+                 True,
                  True,
                  True,
                  True,

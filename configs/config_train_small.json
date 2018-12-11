@@ -3,11 +3,13 @@
 
 	"data folder": "data/china_featured",
 
-	"cache size": 1024,
+	"cache size": 256,
 
-	"target": "ML-ML",
+	"target": "ML-LRU",
 
 	"batch size": 4096,
+
+	"seed": 67,
 
 	"session configuration":
 	{
@@ -15,13 +17,13 @@
 		"change": true,
 		"change mode": "random",
 		"seed": 43,
-		"initial gamma": 0.2,
+		"initial gamma": 0.9,
 		"gamma": 0.001,
-		"alpha": 1
+		"alpha": 0
 	},
 
 	"samples": 150,
-	"max samples": 75,
+	"max samples": 150,
 
 	"percentile admission": 90,
 	"percentile eviction": 90,
@@ -30,18 +32,18 @@
 	"warmup": 200000,
 	"runs": 500,
 	"refresh period": 2,
-	"repetitions": 3,
+	"repetitions": 5,
 	"drop": false,
 	"store period": 3,
-	"overlap": 100000,
-	"period": 200000,
+	"overlap": 50000,
+	"period": 100000,
 
 	"refresh policy": "static",
 	"refresh value": 4,
 
-	"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "SH-GDSF", "SH-LRU", "SH-Oracle"],
+	"algorithms": ["AL-LRU", "SH-LRU"],
 
-	"iterative": true,
+	"iterative": false,
 	"start iteration": "E",
 
 	"IP:train admission": true,
