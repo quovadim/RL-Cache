@@ -1,0 +1,36 @@
+{
+	"model":
+		{
+			"wing size": 4,
+
+			"dropout rate": 0.1,
+			"use common": false,
+			"multiplier common": 20,
+			"layers common": 3,
+
+			"multiplier each": 10,
+			"layers each": 3,
+
+			"use batch normalization": true,
+
+			"eviction lr": 1e-5,
+			"admission lr": 1e-5
+
+		},
+	"testing":
+		{
+			"statistics": "configs/config_statistics.json",
+
+			"data folder": "data/china_featured",
+
+			"batch size": 4096,
+
+			"cache size": 1024,
+
+			"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "SH-GDSF", "SH-LRU", "SH-Oracle", "ML-ML-RNG", "ML-ML-DET"],
+			"period": 300,
+			"requests max": 500000000,
+			"reset": true,
+			"alpha": 0
+		}
+}

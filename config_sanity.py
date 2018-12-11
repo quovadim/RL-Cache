@@ -2,10 +2,10 @@ from environment_aux import load_json, name_to_class
 import os.path
 
 error_levels = {
-    0: '\033[91mCRITICAL\033[0m',
-    1: '\033[93mWARNING\033[0m',
-    2: '\033[94mFIXED\033[0m',
-    3: '\033[92mOK\033[0m'
+    0: '\033[1m\033[91mCRITICAL\033[0m',
+    1: '\033[1m\033[93mWARNING\033[0m',
+    2: '\033[1m\033[94mFIXED\033[0m',
+    3: '\033[1m\033[92mOK\033[0m'
 }
 
 
