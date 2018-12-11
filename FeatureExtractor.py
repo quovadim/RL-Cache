@@ -1,6 +1,6 @@
-import numpy as np
 from tqdm import tqdm
-import sys
+import pickle
+
 from environment_aux import *
 from collections import deque
 
@@ -19,7 +19,7 @@ def collect_features(output_filename, t_max, filenames):
                 for item in feature_matrix:
                     output_file.write(' '.join([str(element) for element in item]) + '\n')
                 feature_matrix = []
-            if counter > t_max:
+            if counter >= t_max:
                 break
             featurer.update_packet_state(row)
             data = featurer.get_packet_features_pure(row).tolist()
@@ -71,46 +71,56 @@ class PacketFeaturer:
         self.bias = 0
         self.normalization_limit = 0
         print 'Real features', self.fnum
-        if config is not None:
-            data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
-            feature_set = np.zeros(shape=(len(data_raw), self.fnum))
-            self.normalization_limit = config['normalization limit']
-            self.bias = config['bias']
-            print 'Bias', self.bias, 'Normalization', self.normalization_limit
-            print 'Loading data'
-            for i in tqdm(range(feature_set.shape[0])):
-                feature_set[i] = np.array([float(item) for item in data_raw[i].split(' ')[:self.fnum]])
 
-            self.feature_mappings = []
-            feature_names = ['size',
-                             'frequency',
-                             'gdsf',
-                             'time recency',
-                             'request recency',
-                             'exponential time recency',
-                             'exponential request recency']
-            for i in range(self.fnum):
-                print 'Doing', feature_names[i]
-                self.feature_mappings.append(split_feature(feature_set[:, i], config['split step']))
-                statistics_arrays = []
-                for _ in range(len(self.feature_mappings[i])):
-                    statistics_arrays.append(deque([]))
-                for item in tqdm(feature_set[:, i]):
-                    _, feature_index = self.get_feature_vector(i, item)
-                    statistics_arrays[feature_index].append(item)
-                statistics_vector = [(np.mean(item), np.std(item)) for item in statistics_arrays]
-                print_mappings(self.feature_mappings[i])
-                print_statistics(statistics_vector)
-                self.statistics += statistics_vector
+        self.preserved_logical_time = 0
+        self.preserved_real_time = 0
+        self.preserved_was_seen = []
+
+        if config is not None:
+            if config['load']:
+                with open(config['filename'], 'r') as f:
+                    data = pickle.load(f)
+                    self.feature_mappings = data[0]
+                    self.statistics = data[1]
+            else:
+                data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
+                feature_set = np.zeros(shape=(len(data_raw), self.fnum))
+                self.normalization_limit = config['normalization limit']
+                self.bias = config['bias']
+                print 'Bias', self.bias, 'Normalization', self.normalization_limit
+                print 'Loading data'
+                for i in tqdm(range(feature_set.shape[0])):
+                    feature_set[i] = np.array([float(item) for item in data_raw[i].split(' ')[:self.fnum]])
+
+                self.feature_mappings = []
+                feature_names = ['size',
+                                 'frequency',
+                                 'gdsf',
+                                 'time recency',
+                                 'request recency',
+                                 'exponential time recency',
+                                 'exponential request recency']
+                for i in range(self.fnum):
+                    print 'Doing', feature_names[i]
+                    self.feature_mappings.append(split_feature(feature_set[:, i], config['split step']))
+                    statistics_arrays = []
+                    for _ in range(len(self.feature_mappings[i])):
+                        statistics_arrays.append(deque([]))
+                    for item in tqdm(feature_set[:, i]):
+                        _, feature_index = self.get_feature_vector(i, item)
+                        statistics_arrays[feature_index].append(item)
+                    statistics_vector = [(np.mean(item), np.std(item)) for item in statistics_arrays]
+                    print_mappings(self.feature_mappings[i])
+                    print_statistics(statistics_vector)
+                    self.statistics += statistics_vector
+                if config['save']:
+                    with open(config['filename', 'w']) as f:
+                        pickle.dump([self.feature_mappings, self.statistics], f)
             self.dim = len(self.get_packet_features(fake_request))
         else:
             self.dim = 0
 
         print 'Features dim', self.dim
-
-        self.preserved_logical_time = 0
-        self.preserved_real_time = 0
-        self.preserved_was_seen = []
 
     def reset(self):
         self.logical_time = self.preserved_logical_time
