@@ -96,10 +96,10 @@ class GameEnvironment:
 
 
 def train(config, admission_path, eviction_path, load_admission, load_eviction, n_threads=10):
-    config_model = check_model_config(config['model'], verbose=False)
+    config_model = config['model']
     if config_model is None:
         return
-    config_statistics = check_statistics_config(config_model['statistics'], verbose=False)
+    config_statistics = config['feature extractor']
     if config_statistics is None:
         return
 
@@ -147,9 +147,6 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
     additional_warming = 0
     empty_loops = 0
 
-    skip_required = warmup_period != 0
-    base_iteration = 0
-
     if config['iterative']:
         runs *= 2
 
@@ -188,15 +185,14 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
         if config['refresh policy'] == 'static':
             pass
         if config['refresh policy'] == 'monotonic':
-            refresh_value = max(0, refresh_value - 2 * (refresh_value * iteration) / runs)
+            refresh_value = max(0, refresh_value - (refresh_value * iteration) / runs)
 
         algorithm_rng.refresh_period = refresh_value
         algorithm_det.refresh_period = refresh_value
 
-        if warming_to_required_state:
-            featurer.full_reset()
-            skip_required = warmup_period != 0
-            base_iteration = 0
+        featurer.full_reset()
+        skip_required = warmup_period != 0
+        base_iteration = 0
 
         if config['iterative']:
             assert not eviction_classical and not admission_classical
@@ -210,10 +206,10 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
             train_eviction = not eviction_classical
 
         if config['iterative']:
-            print 'New run', str(iteration / 2) + '-' + str(iteration % 2), \
-                'Admission' if train_admission else 'Eviction'
+            print 'New run\033[1m', str(iteration / 2) + '-' + str(iteration % 2),\
+                'Admission' if train_admission else 'Eviction', '\033[0m'
         else:
-            print 'New run', iteration
+            print 'New run\033[1m', iteration, '\033[0m'
 
         train_admission = train_admission and config['IP:train admission']
         train_eviction = train_eviction and config['IP:train eviction']
@@ -234,7 +230,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
             if (skip_required and len(current_rows) != warmup_period) or \
                     (not skip_required and not warming_to_required_state and len(current_rows) != period) or \
-                    (not skip_required and warming_to_required_state and len(current_rows) != step):
+                    (not skip_required and warming_to_required_state and len(current_rows) !=
+                     step * config['refresh period']):
                 continue
 
             if ml_features is None:
@@ -266,13 +263,14 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
             time_diff = current_rows[len(current_rows) - 1]['timestamp'] - current_rows[0]['timestamp']
             time_diff = to_ts(time_diff)
 
-            print 'Size arrived {:^15s} Time passed'.format(fsize(traffic_arrived)), time_diff
+            print 'Size arrived \033[1m{:^15s}\033[0m Time passed\033[1m'.format(fsize(traffic_arrived)), \
+                time_diff, '\033[0m'
 
             if skip_required or warming_to_required_state:
                 if skip_required:
                     print 'Warming up', warmup_period
                 else:
-                    print 'Skipping', step, 'left', (additional_warming - empty_loops) * step
+                    print 'Skipping', step, 'left', (additional_warming - empty_loops) * step * config['refresh period']
 
                 test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows, alpha,
                                 base_iteration=base_iteration, special_keys=special_keys)
@@ -296,8 +294,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                     algorithms[key].reset()
                 continue
 
-            print 'Step', 1 + config['refresh period'] - steps_before_skip, \
-                'out of', config['refresh period']
+            print 'Step\033[1m', 1 + config['refresh period'] - steps_before_skip, \
+                '\033[0mout of\033[1m', config['refresh period'], '\033[0m'
 
             steps_before_skip -= 1
 
@@ -320,7 +318,6 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
             states_adm, actions_adm, rewards_adm = [], [], []
             states_evc, actions_evc, rewards_evc = [], [], []
-            indicies_to_remove = []
             addition_history = []
 
             for repetition in range(repetitions):
@@ -445,6 +442,6 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
             base_iteration += step
 
         if not config['iterative'] or iteration % 2 == 1:
-            additional_warming += config['refresh period']
+            additional_warming += 1
         warming_to_required_state = True
         empty_loops = 0

@@ -11,8 +11,8 @@
 
   "use batch normalization": true,
 
-  "eviction lr": 1e-5,
-  "admission lr": 1e-5,
+  "eviction lr": 1e-4,
+  "admission lr": 1e-4,
 
   "statistics": "configs/config_statistics.json"
 

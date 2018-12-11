@@ -88,7 +88,7 @@ class PacketFeaturer:
         self.statistics = []
         self.bias = 0
         self.normalization_limit = 0
-        print 'Real features', self.fnum
+        print 'Real features\033[1m', self.fnum, '\033[0m'
 
         self.preserved_logical_time = 0
         self.preserved_real_time = 0
@@ -101,10 +101,13 @@ class PacketFeaturer:
         self.feature_mappings = []
         self.dim = 0
 
+        self.warmup = 0
+        self.split_step = 0
+
         if config is not None:
                 self.apply_config(config)
 
-        print 'Features dim', self.dim
+        print 'Features dim\033[1m', self.dim, '\033[0m'
 
         self.full_reset()
 
@@ -112,13 +115,13 @@ class PacketFeaturer:
         with open(config['filename'], 'w') as f:
             pickle.dump([self.feature_mappings,
                          self.statistics,
-                         config['split step'],
-                         config['warmup']], f)
+                         self.split_step,
+                         self.warmup], f)
 
     def print_statistics(self):
         lindex = 0
         for i in range(self.fnum):
-            print 'Doing', feature_names[i]
+            print 'Doing\033[1m', feature_names[i], '\033[0m'
             print_mappings(self.feature_mappings[i])
             print_statistics(self.statistics[lindex:lindex + len(self.feature_mappings[i])])
             lindex += len(self.feature_mappings[i])
@@ -127,13 +130,11 @@ class PacketFeaturer:
         data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
         feature_set = np.zeros(shape=(len(data_raw), self.fnum))
 
-        print 'Loading data'
-
         for i in tqdm(range(feature_set.shape[0])):
             feature_set[i] = np.array([float(item) for item in data_raw[i].split(' ')[:self.fnum]])
 
         for i in range(self.fnum):
-            print 'Doing', feature_names[i]
+            print 'Doing\033[1m', feature_names[i], '\033[0m'
             self.feature_mappings.append(split_feature(feature_set[:, i], config['split step']))
             statistics_arrays = []
             for _ in range(len(self.feature_mappings[i])):
@@ -144,25 +145,37 @@ class PacketFeaturer:
             statistics_vector = [(np.mean(item), np.std(item)) for item in statistics_arrays]
             self.statistics += statistics_vector
 
+    def compare(self, feature_extractor):
+        warmup = self.warmup == feature_extractor.warmup
+        split_step = self.split_step == feature_extractor.split_step
+        statistics = self.statistics == feature_extractor.statistics
+        return self.warmup and self.split_step and self.statistics
+
     def load_statistics(self, config):
         with open(config['filename'], 'r') as f:
             data = pickle.load(f)
             self.feature_mappings = data[0]
             self.statistics = data[1]
-            assert config['split step'] == data[2]
-            assert config['warmup'] == data[3]
+            self.warmup = config['warmup']
+            self.split_step = config['split step']
+            assert self.split_step == data[2]
+            assert self.warmup == data[3]
 
     def apply_config(self, config):
         self.forget_lambda = config['lambda']
+        self.warmup = config['warmup']
+        self.split_step = config['split step']
         loading_failed = False
         self.normalization_limit = config['normalization limit']
         self.bias = config['bias']
-        print 'Bias', self.bias, 'Normalization', self.normalization_limit
+        print 'Bias\033[1m', self.bias, '\033[0mNormalization\033[1m', self.normalization_limit, '\033[0m'
         if config['load']:
+            print 'Loading...'
             try:
                 self.load_statistics(config)
+                print '\033[1m\033[92mSUCCESS\033[0m'
             except:
-                print 'Loading failed'
+                print '\033[1m\033[91mFAIL\033[0m'
                 loading_failed = True
 
         if not config['load'] or loading_failed:

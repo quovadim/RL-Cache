@@ -164,9 +164,10 @@ def select_elites(states, actions, rewards, percentile, max_samples):
         elite_indicies = [item[0] for item in selite[:max_samples]]
         percentile_value = min([item[1] for item in selite[:max_samples]])
     samples_used = len(elite_indicies)
+    mean_actions = sum([len(actions[i]) for i in elite_indicies]) / len(elite_indicies)
     elite_states = np.concatenate([states[i] for i in elite_indicies], axis=0)
     elite_actions = np.concatenate([actions[i] for i in elite_indicies], axis=0)
-    return elite_states, elite_actions, percentile_value, samples_used
+    return elite_states, elite_actions, percentile_value, samples_used, mean_actions
 
 
 def generate_data_for_models(keys,
@@ -237,9 +238,11 @@ def train_model(percentile,
     elite_states = []
     elite_actions = []
     percentile_est = 0
+    samples = 0
+    mean_actions = 0
     while len(elite_states) == 0:
-        elite_states, elite_actions, percentile_est, samples = select_elites(states, actions, rewards,
-                                                                             percentile_value, max_samples)
+        elite_states, elite_actions, percentile_est, samples, mean_actions = select_elites(
+            states, actions, rewards, percentile_value, max_samples)
         if len(elite_states) == 0:
             if percentile_value is None:
                 percentile_value = 100
@@ -261,9 +264,10 @@ def train_model(percentile,
     v = model.fit(features_embedding[elite_states], answers_embedding[elite_actions],
                   epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
 
-    print 'Samples: {:6d} Accuracy: {:7.4f}% Loss: {:7.5f} ' \
-          'Mean: {:7.4f}% Median: {:7.4f}% Percentile: {:7.4f}% Max: {:7.4f}%'.format(
+    print 'Samples: {:6d} APS: {:^10d} Accuracy: \033[1m{:7.4f}%\033[0m Loss: {:7.5f} ' \
+          'Mean: {:7.4f}% Median: {:7.4f}% Percentile: \033[1m{:7.4f}%\033[0m Max: {:7.4f}%'.format(
         samples,
+        mean_actions,
         100 * np.mean(v.history['acc'][0]),
         np.mean(v.history['loss'][0]),
         100 * np.mean(rewards),
@@ -318,7 +322,7 @@ def test_algorithms(algorithms,
                     else:
                         print_list.append('{:^' + str(len(name)) + 's} \033[1m{:5.2f}%\033[0m')
             print_string = ' | '.join(print_list)
-            print_string = 'Iteration {:10d} ' + print_string
+            print_string = 'Iteration \033[1m{:10d}\033[0m ' + print_string
             subst_vals = []
             for i in range(len(names)):
                 subst_vals.append(names[i])
@@ -391,16 +395,18 @@ def generate_session_continious(
 
     ratings = algorithm.get_ratings()
 
+    change_length = len(rows)
+    multiplier = 1.
+
+    reward_hits = 0
+    reward_total = 0
+
+    gamma = 1.
+
     if config['collect discounted']:
-        reward_hits = 0
-        reward_total = 0
-        if not config['change']:
-            change_length = len(rows)
-            multiplier = 1
-        else:
-            change_length = len(rows) - change_point
-            multiplier = config['initial gamma']
-        gamma = (config['gamma'] / multiplier) ** (1.0 / change_length)
+        change_length = change_point
+        multiplier = config['initial gamma']
+        gamma = (config['gamma'] / multiplier) ** (1.0 / (len(rows) - change_length))
 
     evc_decision_values, eviction_decisions, adm_decision_values, admission_decisions = \
         get_session_features((eviction_defined, eviction_deterministic),
@@ -412,18 +418,18 @@ def generate_session_continious(
 
     for i in range(len(rows)):
 
+        if config['collect discounted'] and exchanged:
+            multiplier *= gamma
+
         hit = algorithm.decide(rows[i], eviction_decisions[i], admission_decisions[i])
-        if config['collect discounted']:
-            if hit:
-                reward_hits += multiplier * metric_funct(rows[i]['size'], 1, alpha)
-            reward_total += multiplier * metric_funct(rows[i]['size'], 1, alpha)
-            if not config['change'] or i >= change_point:
-                multiplier *= gamma
+        if hit:
+            reward_hits += multiplier * metric_funct(rows[i]['size'], 1, alpha)
+        reward_total += multiplier * metric_funct(rows[i]['size'], 1, alpha)
 
         if exchanged:
             continue
 
-        if config['change'] and i >= change_point:
+        if config['change'] and i == change_length - 1:
             if config['change mode'] == 'deterministic':
                 eviction_deterministic = True
                 admission_deterministic = True
@@ -449,19 +455,9 @@ def generate_session_continious(
             lstates_adm.append(i)
             lactions_adm.append(adm_decision_values[i])
 
-    if collect_admission:
-        admission_rating = metric(algorithm, alpha)
-    else:
-        admission_rating = 0
 
-    if collect_eviction:
-        eviction_rating = metric(algorithm, alpha)
-    else:
-        eviction_rating = 0
-
-    if config['collect discounted']:
-        eviction_rating = reward_hits / reward_total
-        admission_rating = reward_hits / reward_total
+    eviction_rating = reward_hits / reward_total
+    admission_rating = reward_hits / reward_total
 
     assert algorithm_template.get_ratings() == ratings
 

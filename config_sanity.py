@@ -128,14 +128,24 @@ def check_ranges(config, names, necessity, intervals, verbose, tabulation, level
     return config
 
 
-def check_algorithm(name, value, random, tabulation, level, verbose, dead):
+def check_algorithm(name, value, model, tabulation, level, verbose, dead):
     is_exact, can_be_converted, target_type = check_single_type(name, value, [str, unicode], verbose, tabulation, level)
 
     if not is_exact and can_be_converted:
         value = target_type(value)
 
     if not is_exact and not can_be_converted:
-        return False, name
+        return False, value, None
+
+    if model is not None:
+        is_exact, can_be_converted, target_type = check_single_type(
+            value + ' model', model, [str, unicode], verbose, tabulation, level)
+
+        if not is_exact and can_be_converted:
+            model = target_type(model)
+
+        if not is_exact and not can_be_converted:
+            return False, value, None
 
     try:
         _, admission_random, _, eviction_random, _, _ = name_to_class(value)
@@ -144,19 +154,27 @@ def check_algorithm(name, value, random, tabulation, level, verbose, dead):
     except AssertionError:
         if dead:
             print tabulation, error_levels[level], 'for', name, value, 'is not correct algorithm name'
-            return False, name
+            return False, value, None
 
-    if random == (get_randomness(value) == 0):
-        reality = 'random' if not random else 'deterministic'
-        theory = 'random' if random else 'deterministic'
-        if dead:
-            print tabulation, error_levels[level], 'for', name, value, 'should be', theory, 'while it is', reality
-            return False, name
-    else:
-        reality = 'random' if random else 'deterministic'
-        if verbose:
-            print tabulation, error_levels[3], 'for', name, value, 'is', reality, 'as it should be'
-    return True, value
+    randomness_value = get_randomness(value)
+
+    if randomness_value == 0:
+        if model is None:
+            if verbose:
+                print tabulation, error_levels[3], 'for', name, value, 'matching model'
+            return True, value, model
+        else:
+            print tabulation, error_levels[level], 'for', name, value, 'model mismatch'
+            return False, value, None
+
+    if randomness_value != 0:
+        if model is None:
+            print tabulation, error_levels[1], 'for', name, value, 'assuming local model'
+            return True, value, model
+        else:
+            if verbose:
+                print tabulation, error_levels[3], 'for', name, value, 'matching model', model
+            return True, value, check_model_config(model, tabulation, verbose)
 
 
 def check_statistics_config(filename, tabulation='', verbose=True):
@@ -442,6 +460,7 @@ def check_train_config(filename, tabulation='', verbose=True):
         "refresh policy",
         "refresh value",
         "algorithms",
+        "models",
         "iterative",
         "start iteration",
         "IP:train admission",
@@ -480,6 +499,7 @@ def check_train_config(filename, tabulation='', verbose=True):
         None,
         None,
         None,
+        None,
         (0, None, None),
         (0, 100, None)
     ]
@@ -507,6 +527,7 @@ def check_train_config(filename, tabulation='', verbose=True):
              [str, unicode],
              [int],
              [list],
+             [list],
              [bool],
              [str, unicode],
              [bool],
@@ -533,6 +554,7 @@ def check_train_config(filename, tabulation='', verbose=True):
                  True,
                  True,
                  False,
+                 True,
                  True,
                  True,
                  True,
@@ -605,17 +627,40 @@ def check_train_config(filename, tabulation='', verbose=True):
     if config is None:
         return None
 
-    correct, config['target'] = check_algorithm('target', config['target'], True, tabulation, 0, verbose, True)
+    correct, config['target'], local_model = check_algorithm(
+        'target', config['target'], config['model'], tabulation, 0, verbose, True)
     if not correct:
         return None
 
+    config['model'] = local_model
+    config['feature extractor'] = check_statistics_config(local_model['statistics'], tabulation, verbose)
+    if config['feature extractor'] is None:
+        return None
+
     new_names = []
-    for item in config['algorithms']:
-        correct, alg = check_algorithm(item, item, False, tabulation, 0, verbose, True)
+    models = []
+    extractors = []
+    for i in range(len(config['algorithms'])):
+        algorithm_name = config['algorithms'][i]
+        model_name = config['models'][i]
+        correct, algorithm_name, model = \
+            check_algorithm(algorithm_name, algorithm_name, model_name, tabulation, 0, verbose, True)
         if not correct:
             return None
-        new_names.append(alg)
+        if model is None:
+            model = config['model']
+            extractor = config['feature extractor']
+        else:
+            extractor = check_statistics_config(model, tabulation, verbose)
+        if extractor is None:
+            return None
+        new_names.append(algorithm_name)
+        models.append(model)
+        extractors.append(extractor)
+
+    config['models'] = models
     config['algorithms'] = new_names
+    config['extractors'] = extractors
 
     config["session configuration"] = check_session_configuration(config["session configuration"], tabulation, verbose)
 
