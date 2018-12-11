@@ -1,27 +1,18 @@
-from os import listdir
-from os.path import isfile, join
-import sys
 from hurry.filesize import size as fsize
-from tqdm import tqdm
 from FeatureExtractor import PacketFeaturer
+from config_sanity import check_statistics_config, check_train_config, check_model_config
 
 from environment_aux import *
 from model import *
+
+from tqdm import tqdm
 
 
 class GameEnvironment:
     def __init__(self, config):
         self.config = config
 
-        filepath = self.config['data folder']
-        filenames = [(join(filepath, f), int(f.replace('.csv', ''))) for f in listdir(filepath)
-                     if isfile(join(filepath, f)) and '.csv' in f and 'lock' not in f]
-        filenames = sorted(filenames, key=lambda x: x[1])
-        self.filenames = [item[0] for item in filenames]
-
-        self.cache_size = self.config['cache size'] * 1024 * 1024
-
-        self.featurer = PacketFeaturer(self.config['statistics'])
+        self.featurer = PacketFeaturer(load_json(self.config['training']['statistics']))
 
         self.wing_size = self.config['model']["wing size"]
         self.last_dim = self.wing_size * 2 + 1
@@ -35,7 +26,15 @@ class GameEnvironment:
         current_rows = []
         file_counter = 0
 
-        classes_names = self.config['testing']['algorithms']
+        config = self.config['testing']
+
+        filenames = collect_filenames(config['data folder'])
+
+        featurer = PacketFeaturer(self.config['statistics'])
+
+        cache_size = config['cache size']
+
+        classes_names = config['algorithms']
 
         algorithms_data = {}
         algorithms = {}
@@ -43,16 +42,12 @@ class GameEnvironment:
         for class_name in classes_names:
             class_type, rng_adm, _, rng_evc, _, _ = name_to_class(class_name)
             algorithms_data[class_name] = name_to_class(class_name)
-            algorithms[class_name] = class_type(self.cache_size)
-
-        memory_vector = None
+            algorithms[class_name] = class_type(cache_size)
 
         start_time = None
 
-        forget_lambda = self.config['lambda features']
-
-        for row in iterate_dataset(self.filenames):
-            if counter > self.config['testing']['requests max']:
+        for row in iterate_dataset(filenames):
+            if counter > config['requests max']:
                 break
 
             current_rows.append(row)
@@ -60,16 +55,15 @@ class GameEnvironment:
             if start_time is None:
                 start_time = row['timestamp']
 
-            if counter != 0 and row['timestamp'] - start_time > self.config['testing']['period']:
+            if counter != 0 and row['timestamp'] - start_time > config['period']:
                 start_time = row['timestamp']
                 print ''
 
-                classical_features = gen_feature_set(current_rows, self.featurer, forget_lambda, classical=True)
+                classical_features = featurer.gen_feature_set(current_rows, classical=True)
 
-                ml_features, memory_vector = gen_feature_set(current_rows, self.featurer, forget_lambda,
-                                                             classical=False, memory_vector=memory_vector)
+                ml_features = featurer.gen_feature_set(current_rows, classical=False)
 
-                self.featurer.preserve()
+                featurer.preserve()
 
                 decisions_adm, decisions_evc = generate_data_for_models(
                     algorithms.keys(),
@@ -78,15 +72,15 @@ class GameEnvironment:
                     ml_features,
                     self.model_admission,
                     self.model_eviction,
-                    self.config['batch size']
+                    config['batch size']
                 )
 
-                if self.config['testing']['reset']:
+                if config['reset']:
                     for alg in algorithms.keys():
                         algorithms[alg].reset()
 
                 test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows,
-                                self.config['testing']['alpha'],
+                                config['alpha'],
                                 output_file=o_file_generator + '_' + str(file_counter),
                                 base_iteration=counter)
                 file_counter += 1
@@ -98,357 +92,344 @@ class GameEnvironment:
                 sys.stdout.flush()
             counter += 1
 
-    def train(self,
-              output_suffix,
-              n_threads=10):
 
-        percentile_admission = self.config['training']['percentile admission']
-        percentile_eviction = self.config['training']['percentile eviction']
+def train(config, admission_path, eviction_path, load_admission, load_eviction, n_threads=10):
+    config_model = check_model_config(config['model'], verbose=False)
+    if config_model is None:
+        return
+    config_statistics = check_statistics_config(config_model['statistics'], verbose=False)
+    if config_statistics is None:
+        return
 
-        epochs = self.config['training']['epochs']
-        warmup_period = self.config['training']['warmup']
-        batch_size = self.config['batch size']
-        runs = self.config['training']['runs']
-        period = self.config['training']['period']
-        forget_lambda = self.config['lambda features']
-        repetitions = self.config['training']['repetitions']
-        drop = self.config['training']['drop']
-        samples = self.config['training']['samples']
-        alpha = self.config['training']['session configuration']['alpha']
-        classes_names = self.config['training']['algorithms']
+    featurer = PacketFeaturer(config_statistics)
 
-        step = period - self.config['training']['overlap']
-        overlap = self.config['training']['overlap']
+    model_admission, model_eviction, common_model, last_dim = create_models(config_model, featurer.dim)
 
-        s_actions_evc = np.diag(np.ones((self.last_dim,)))
-        s_actions_adm = np.diag(np.ones((2,)))
+    if load_eviction:
+        print 'Loading pretrained from', load_eviction
+        model_eviction.load_weights(eviction_path)
+    if load_admission:
+        print 'Loading pretrained from', load_admission
+        model_admission.load_weights(admission_path)
 
-        refresh_value = self.config['training']['refresh value']
-        warming_to_required_state = False
-        additional_warming = 0
-        empty_loops = 0
+    filenames = collect_filenames(config['data folder'])
 
-        skip_required = warmup_period != 0
-        base_iteration = 0
+    cache_size = config['cache size'] * 1024 * 1024
 
-        if self.config['training']['iterative']:
-            runs *= 2
+    percentile_admission = config['percentile admission']
+    percentile_eviction = config['percentile eviction']
 
-        for iteration in range(runs):
-            current_rows = []
-            memory_vector = None
+    epochs = config['epochs']
+    warmup_period = config['warmup']
+    batch_size = config['batch size']
+    runs = config['runs']
+    period = config['period']
+    repetitions = config['repetitions']
+    drop = config['drop']
+    samples = config['samples']
+    alpha = config['session configuration']['alpha']
+    classes_names = config['algorithms']
 
-            classes_names.append(self.config['training']['target'] + '-DET')
-            classes_names.append(self.config['training']['target'] + '-RNG')
-            special_keys = [self.config['training']['target'] + '-DET', self.config['training']['target'] + '-RNG']
-            algorithms = {}
-            algorithms_data = {}
+    step = period - config['overlap']
+    overlap = config['overlap']
 
-            algorithm_rng = None
-            algorithm_det = None
+    s_actions_evc = np.diag(np.ones((last_dim,)))
+    s_actions_adm = np.diag(np.ones((2,)))
 
-            eviction_classical = True
-            admission_classical = True
+    refresh_value = config['refresh value']
+    warming_to_required_state = False
+    additional_warming = 0
+    empty_loops = 0
 
-            for class_name in classes_names:
-                class_type, rng_adm, _, rng_evc, _, rng_type = name_to_class(class_name)
-                if rng_adm or rng_evc:
-                    if rng_type:
-                        eviction_classical = not rng_evc
-                        admission_classical = not rng_adm
-                        algorithm_rng = class_type(self.cache_size)
-                        algorithms[class_name] = algorithm_rng
-                    else:
-                        algorithm_det = class_type(self.cache_size)
-                        algorithms[class_name] = algorithm_det
+    skip_required = warmup_period != 0
+    base_iteration = 0
+
+    if config['iterative']:
+        runs *= 2
+
+    for iteration in range(runs):
+        current_rows = []
+
+        classes_names.append(config['target'] + '-DET')
+        classes_names.append(config['target'] + '-RNG')
+        special_keys = [config['target'] + '-DET', config['target'] + '-RNG']
+        algorithms = {}
+        algorithms_data = {}
+
+        algorithm_rng = None
+        algorithm_det = None
+
+        eviction_classical = True
+        admission_classical = True
+
+        for class_name in classes_names:
+            class_type, rng_adm, _, rng_evc, _, rng_type = name_to_class(class_name)
+            if rng_adm or rng_evc:
+                if rng_type:
+                    eviction_classical = not rng_evc
+                    admission_classical = not rng_adm
+                    algorithm_rng = class_type(cache_size)
+                    algorithms[class_name] = algorithm_rng
                 else:
-                    algorithms[class_name] = class_type(self.cache_size)
-                algorithms_data[class_name] = name_to_class(class_name)
-
-            assert algorithm_rng is not None and algorithm_det is not None
-
-            if self.config['training']['refresh policy'] == 'static':
-                pass
-            if self.config['training']['refresh policy'] == 'monotonic':
-                refresh_value = max(0, refresh_value - 2 * (refresh_value * iteration) / runs)
-
-            algorithm_rng.refresh_period = refresh_value
-            algorithm_det.refresh_period = refresh_value
-
-            if warming_to_required_state:
-                self.featurer.full_reset()
-                skip_required = warmup_period != 0
-                base_iteration = 0
-
-            if self.config['training']['iterative']:
-                assert not eviction_classical and not admission_classical
-                eviction_turn = 1
-                if self.config['training']['start iteration'] == 'E':
-                    eviction_turn = 0
-                train_admission = iteration % 2 != eviction_turn
-                train_eviction = iteration % 2 == eviction_turn
+                    algorithm_det = class_type(cache_size)
+                    algorithms[class_name] = algorithm_det
             else:
-                train_admission = not admission_classical
-                train_eviction = not eviction_classical
+                algorithms[class_name] = class_type(cache_size)
+            algorithms_data[class_name] = name_to_class(class_name)
 
-            if self.config['training']['iterative']:
-                print 'New run', str(iteration / 2) + '-' + str(iteration % 2), \
-                    'Admission' if train_admission else 'Eviction'
+        assert algorithm_rng is not None and algorithm_det is not None
+
+        if config['refresh policy'] == 'static':
+            pass
+        if config['refresh policy'] == 'monotonic':
+            refresh_value = max(0, refresh_value - 2 * (refresh_value * iteration) / runs)
+
+        algorithm_rng.refresh_period = refresh_value
+        algorithm_det.refresh_period = refresh_value
+
+        if warming_to_required_state:
+            featurer.full_reset()
+            skip_required = warmup_period != 0
+            base_iteration = 0
+
+        if config['iterative']:
+            assert not eviction_classical and not admission_classical
+            eviction_turn = 1
+            if config['start iteration'] == 'E':
+                eviction_turn = 0
+            train_admission = iteration % 2 != eviction_turn
+            train_eviction = iteration % 2 == eviction_turn
+        else:
+            train_admission = not admission_classical
+            train_eviction = not eviction_classical
+
+        if config['iterative']:
+            print 'New run', str(iteration / 2) + '-' + str(iteration % 2), \
+                'Admission' if train_admission else 'Eviction'
+        else:
+            print 'New run', iteration
+
+        train_admission = train_admission and config['IP:train admission']
+        train_eviction = train_eviction and config['IP:train eviction']
+
+        ml_features = None
+        classical_features = None
+
+        addition_history = []
+
+        steps_before_skip = config['refresh period']
+
+        for row in iterate_dataset(filenames):
+
+            if steps_before_skip == 0:
+                break
+
+            current_rows.append(row)
+
+            if (skip_required and len(current_rows) != warmup_period) or \
+                    (not skip_required and not warming_to_required_state and len(current_rows) != period) or \
+                    (not skip_required and warming_to_required_state and len(current_rows) !=
+                     config['refresh period'] * step):
+                continue
+
+            if ml_features is None:
+                ml_features = featurer.gen_feature_set(current_rows, classical=False)
+                classical_features = featurer.gen_feature_set(current_rows, classical=True)
             else:
-                print 'New run', iteration
+                extended_ml_features = featurer.gen_feature_set(current_rows[overlap: period], classical=False)
+                extended_classical_features = featurer.gen_feature_set(current_rows[period - step: period],
+                                                                           classical=True)
+                ml_features = ml_features[step:]
+                classical_features = classical_features[step:]
+                ml_features = np.concatenate([ml_features, extended_ml_features], axis=0)
+                classical_features = np.concatenate([classical_features, extended_classical_features], axis=0)
 
-            train_admission = train_admission and self.config['training']['IP:train admission']
-            train_eviction = train_eviction and self.config['training']['IP:train eviction']
+            featurer.preserve()
+            print 'Logical time', featurer.logical_time
 
-            ml_features = None
-            classical_features = None
+            decisions_adm, decisions_evc = generate_data_for_models(
+                algorithms.keys(),
+                algorithms_data,
+                classical_features,
+                ml_features,
+                model_admission,
+                model_eviction,
+                batch_size
+            )
 
-            addition_history = []
+            traffic_arrived = sum([item['size'] for item in current_rows])
+            time_diff = current_rows[len(current_rows) - 1]['timestamp'] - current_rows[0]['timestamp']
+            time_diff = to_ts(time_diff)
 
-            steps_before_skip = self.config['training']['refresh period']
+            print 'Size arrived {:^15s} Time passed'.format(fsize(traffic_arrived)), time_diff
 
-            for row in iterate_dataset(self.filenames):
-
-                if steps_before_skip == 0:
-                    break
-
-                current_rows.append(row)
-
-                if (skip_required and len(current_rows) != warmup_period) or \
-                        (not skip_required and not warming_to_required_state and len(current_rows) != period) or \
-                        (not skip_required and warming_to_required_state and len(current_rows) !=
-                         self.config['training']['refresh period'] * step):
-                    continue
-
-                if ml_features is None:
-                    ml_features, memory_vector = gen_feature_set(current_rows, self.featurer, forget_lambda,
-                                                                 classical=False, memory_vector=memory_vector)
-                    classical_features = gen_feature_set(current_rows, self.featurer, forget_lambda, classical=True)
+            if skip_required or warming_to_required_state:
+                if skip_required:
+                    print 'Warming up', warmup_period
                 else:
-                    extended_ml_features, memory_vector = gen_feature_set(current_rows[overlap: period],
-                                                                          self.featurer, forget_lambda,
-                                                                          memory_vector=memory_vector)
-                    extended_classical_features = gen_feature_set(current_rows[period - step: period],
-                                                                  self.featurer, forget_lambda,
-                                                                  classical=True)
-                    ml_features = ml_features[step:]
-                    classical_features = classical_features[step:]
-                    ml_features = np.concatenate([ml_features, extended_ml_features], axis=0)
-                    classical_features = np.concatenate([classical_features, extended_classical_features], axis=0)
+                    print 'Skipping', step, 'left', (additional_warming - empty_loops) * step * config['refresh period']
 
-                self.featurer.preserve()
+                test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows, alpha,
+                                base_iteration=base_iteration, special_keys=special_keys)
 
-                print 'Step', 1 + self.config['training']['refresh period'] - steps_before_skip, \
-                    'out of', self.config['training']['refresh period'], 'Logical time', self.featurer.logical_time
-
-                decisions_adm, decisions_evc = generate_data_for_models(
-                    algorithms.keys(),
-                    algorithms_data,
-                    classical_features,
-                    ml_features,
-                    self.model_admission,
-                    self.model_eviction,
-                    self.config['batch size']
-                )
-
-                traffic_arrived = sum([item['size'] for item in current_rows])
-                time_diff = current_rows[len(current_rows) - 1]['timestamp'] - current_rows[0]['timestamp']
-                time_diff = to_ts(time_diff)
-
-                print 'Size arrived {:^15s} Time passed'.format(fsize(traffic_arrived)), time_diff
-
-                if skip_required or warming_to_required_state:
-                    if skip_required:
-                        print 'Warming up', warmup_period
+                if warming_to_required_state:
+                    if empty_loops == additional_warming:
+                        warming_to_required_state = False
                     else:
-                        print 'Skipping', step, 'left', (additional_warming - empty_loops) * step * \
-                                                        self.config['training']['refresh period']
+                        empty_loops += 1
 
-                    test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows, alpha,
-                                    base_iteration=base_iteration, special_keys=special_keys)
+                ml_features = None
+                classical_features = None
+                base_iteration += len(current_rows)
 
-                    if warming_to_required_state:
-                        if empty_loops == additional_warming:
-                            warming_to_required_state = False
-                        else:
-                            empty_loops += 1
+                current_rows = []
 
-                    ml_features = None
-                    classical_features = None
-                    base_iteration += len(current_rows)
-
-                    current_rows = []
-
-                    if skip_required:
-                        skip_required = False
-
-                    for key in algorithms.keys():
-                        algorithms[key].reset()
-                    continue
-
-                steps_before_skip -= 1
+                if skip_required:
+                    skip_required = False
 
                 for key in algorithms.keys():
                     algorithms[key].reset()
+                continue
 
-                algorithms_copy = {}
-                algorithms_copy_states = {}
-                for key in algorithms.keys():
-                    algorithms_copy[key] = copy_object(algorithms[key])
-                    algorithms_copy_states[key] = algorithms_copy[key].get_ratings()
+            print 'Step', 1 + config['refresh period'] - steps_before_skip, \
+                'out of', config['refresh period']
 
-                test_algorithms(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                                base_iteration=base_iteration, special_keys=special_keys)
+            steps_before_skip -= 1
 
-                for key in algorithms_copy_states.keys():
-                    assert algorithms_copy_states[key] == algorithms[key].get_ratings()
+            for key in algorithms.keys():
+                algorithms[key].reset()
 
-                bool_array = [[train_eviction, train_admission]] * repetitions
+            algorithms_copy = {}
+            algorithms_copy_states = {}
+            for key in algorithms.keys():
+                algorithms_copy[key] = copy_object(algorithms[key])
+                algorithms_copy_states[key] = algorithms_copy[key].get_ratings()
 
-                states_adm, actions_adm, rewards_adm = [], [], []
-                states_evc, actions_evc, rewards_evc = [], [], []
+            test_algorithms(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
+                            base_iteration=base_iteration, special_keys=special_keys)
 
-                for repetition in range(repetitions):
-                    local_train_eviction, local_train_admission = bool_array[repetition]
+            for key in algorithms_copy_states.keys():
+                assert algorithms_copy_states[key] == algorithms[key].get_ratings()
 
-                    print 'Repetition', repetition + 1, 'out of', repetitions
+            bool_array = [[train_eviction, train_admission]] * repetitions
 
-                    if drop:
-                        states_adm, actions_adm, rewards_adm = [], [], []
-                        states_evc, actions_evc, rewards_evc = [], [], []
-                        addition_history = []
-                    else:
-                        indicies_to_remove = []
-                        for i in range(len(addition_history)):
-                            if repetition - addition_history[i] >= self.config['training']['store period']:
-                                indicies_to_remove.append(i)
-                        for index in indicies_to_remove:
-                            try:
-                                if local_train_eviction:
-                                    del states_evc[index]
-                                    del actions_evc[index]
-                                    del rewards_evc[index]
-                                if local_train_admission:
-                                    del states_adm[index]
-                                    del actions_adm[index]
-                                    del rewards_adm[index]
-                                del addition_history[index]
-                            except IndexError:
-                                continue
+            states_adm, actions_adm, rewards_adm = [], [], []
+            states_evc, actions_evc, rewards_evc = [], [], []
 
-                    sessions = []
-                    if not admission_classical:
-                        if local_train_admission or repetition == 0:
-                            predictions_admission = self.model_admission.predict(ml_features,
-                                                                                 batch_size=batch_size,
-                                                                                 verbose=0)
-                    else:
-                        predictions_admission = decisions_adm[self.config['training']['target'] + '-RNG']
-                    if not eviction_classical:
-                        if local_train_eviction or repetition == 0:
-                            predictions_eviction = self.model_eviction.predict(ml_features,
-                                                                               batch_size=batch_size,
-                                                                               verbose=0)
-                    else:
-                        predictions_eviction = decisions_evc[self.config['training']['target'] + '-RNG']
+            for repetition in range(repetitions):
+                local_train_eviction, local_train_admission = bool_array[repetition]
 
-                    for i in tqdm(range(0, samples, n_threads)):
-                        steps = min(n_threads, samples - i)
-                        threads = [None] * steps
-                        results = [None] * steps
-                        for thread_number in range(min(n_threads,  steps)):
-                            threads[thread_number] = threaded(generate_session_continious)(
-                                predictions_eviction,
-                                predictions_admission,
-                                current_rows,
-                                algorithm_rng,
-                                self.config['training']['session configuration'],
-                                step,
-                                eviction_deterministic=eviction_classical,
-                                collect_eviction=local_train_eviction,
-                                eviction_defined=eviction_classical,
-                                admission_deterministic=admission_classical,
-                                collect_admission=local_train_admission,
-                                admission_defined=admission_classical)
+                print 'Repetition', repetition + 1, 'out of', repetitions
 
-                        for thread_number in range(min(n_threads, steps)):
-                            results[thread_number] = threads[thread_number].result_queue.get()
-                        if self.config['training']['dump sessions']:
-                            if len(sessions) > self.config['training']['dump limit']:
-                                dump_percentile = np.percentile([item[4] for item in sessions],
-                                                                self.config['training']['dump percentile'])
-                                results = [item for item in results if item[4] > dump_percentile]
-                        if results:
-                            sessions += results
-                            addition_history += [repetition] * len(results)
+                if drop:
+                    states_adm, actions_adm, rewards_adm = [], [], []
+                    states_evc, actions_evc, rewards_evc = [], [], []
+                    addition_history = []
+                else:
+                    indicies_to_remove = []
+                    for i in range(len(addition_history)):
+                        if repetition - addition_history[i] >= config['store period']:
+                            indicies_to_remove.append(i)
+                    for index in indicies_to_remove:
+                        try:
+                            if local_train_eviction:
+                                del states_evc[index]
+                                del actions_evc[index]
+                                del rewards_evc[index]
+                            if local_train_admission:
+                                del states_adm[index]
+                                del actions_adm[index]
+                                del rewards_adm[index]
+                            del addition_history[index]
+                        except IndexError:
+                            continue
 
-                    for se, ae, sa, aa, re, ra in sessions:
-                        states_evc.append(se)
-                        states_adm.append(sa)
-                        actions_evc.append(ae)
-                        actions_adm.append(aa)
-                        rewards_evc.append(re)
-                        rewards_adm.append(ra)
+                sessions = []
+                if not admission_classical:
+                    if local_train_admission or repetition == 0:
+                        predictions_admission = model_admission.predict(ml_features,
+                                                                        batch_size=batch_size,
+                                                                        verbose=0)
+                else:
+                    predictions_admission = decisions_adm[config['target'] + '-RNG']
+                if not eviction_classical:
+                    if local_train_eviction or repetition == 0:
+                        predictions_eviction = model_eviction.predict(ml_features,
+                                                                      batch_size=batch_size,
+                                                                      verbose=0)
+                else:
+                    predictions_eviction = decisions_evc[config['target'] + '-RNG']
 
-                    if local_train_admission:
-                        train_model(percentile_admission,
-                                    self.model_admission,
-                                    rewards_adm,
-                                    states_adm,
-                                    actions_adm,
-                                    predictions_admission,
-                                    ml_features,
-                                    s_actions_adm,
-                                    epochs,
-                                    batch_size,
-                                    self.config['training']['max samples'],
-                                    'Admission')
+                for i in tqdm(range(0, samples, n_threads)):
+                    steps = min(n_threads, samples - i)
+                    threads = [None] * steps
+                    results = [None] * steps
+                    for thread_number in range(min(n_threads,  steps)):
+                        threads[thread_number] = threaded(generate_session_continious)(
+                            predictions_eviction,
+                            predictions_admission,
+                            current_rows,
+                            algorithm_rng,
+                            config['session configuration'],
+                            step,
+                            eviction_deterministic=eviction_classical,
+                            collect_eviction=local_train_eviction,
+                            eviction_defined=eviction_classical,
+                            admission_deterministic=admission_classical,
+                            collect_admission=local_train_admission,
+                            admission_defined=admission_classical)
 
-                        self.model_admission.save_weights('models/adm_' + output_suffix)
+                    for thread_number in range(min(n_threads, steps)):
+                        results[thread_number] = threads[thread_number].result_queue.get()
+                    if config['dump sessions']:
+                        if len(sessions) > config['dump limit']:
+                            dump_percentile = np.percentile([item[4] for item in sessions], config['dump percentile'])
+                            results = [item for item in results if item[4] > dump_percentile]
+                    if results:
+                        sessions += results
+                        addition_history += [repetition] * len(results)
 
-                    if local_train_eviction:
-                        train_model(percentile_eviction,
-                                    self.model_eviction,
-                                    rewards_evc,
-                                    states_evc,
-                                    actions_evc,
-                                    predictions_eviction,
-                                    ml_features,
-                                    s_actions_evc,
-                                    epochs,
-                                    batch_size,
-                                    self.config['training']['max samples'],
-                                    'Eviction')
+                for se, ae, sa, aa, re, ra in sessions:
+                    states_evc.append(se)
+                    states_adm.append(sa)
+                    actions_evc.append(ae)
+                    actions_adm.append(aa)
+                    rewards_evc.append(re)
+                    rewards_adm.append(ra)
 
-                        self.model_eviction.save_weights('models/evc_' + output_suffix)
+                if local_train_admission:
+                    train_model(percentile_admission, model_admission, rewards_adm, states_adm, actions_adm,
+                                predictions_admission, ml_features, s_actions_adm, epochs, batch_size,
+                                config['max samples'], 'Admission')
 
-                decisions_adm, decisions_evc = generate_data_for_models(
-                    algorithms.keys(),
-                    algorithms_data,
-                    classical_features,
-                    ml_features,
-                    self.model_admission,
-                    self.model_eviction,
-                    self.config['batch size']
-                )
+                    model_admission.save_weights(admission_path)
 
-                test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                                base_iteration=base_iteration, special_keys=special_keys)
+                if local_train_eviction:
+                    train_model(percentile_eviction, model_eviction, rewards_evc, states_evc, actions_evc,
+                                predictions_eviction, ml_features, s_actions_evc, epochs, batch_size,
+                                config['max samples'], 'Eviction')
 
-                del states_evc
-                del states_adm
-                del rewards_evc
-                del rewards_adm
-                del actions_evc
-                del actions_adm
+                    model_eviction.save_weights(eviction_path)
 
-                current_rows = current_rows[step:]
+            decisions_adm, decisions_evc = generate_data_for_models(algorithms.keys(), algorithms_data,
+                                                                    classical_features, ml_features, model_admission,
+                                                                    model_eviction, batch_size)
 
-                base_iteration += step
+            test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
+                            base_iteration=base_iteration, special_keys=special_keys)
 
-            if not self.config['training']['iterative'] or iteration % 2 == 1:
-                additional_warming += 1
-            warming_to_required_state = True
-            empty_loops = 0
-            steps_before_skip = self.config['training']['refresh period']
+            del states_evc
+            del states_adm
+            del rewards_evc
+            del rewards_adm
+            del actions_evc
+            del actions_adm
 
+            current_rows = current_rows[step:]
+
+            base_iteration += step
+
+        if not config['iterative'] or iteration % 2 == 1:
+            additional_warming += 1
+        warming_to_required_state = True
+        empty_loops = 0

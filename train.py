@@ -1,10 +1,9 @@
 import argparse
 import os
-from os import listdir
-from os.path import isfile, join
 import json
 
-from GameEnvironment import GameEnvironment
+from GameEnvironment import train
+from config_sanity import check_train_config
 
 parser = argparse.ArgumentParser(description='Algorithm trainer')
 parser.add_argument("networks", type=str, help="Network name suffix")
@@ -16,22 +15,15 @@ parser.add_argument('-a', '--preload_admission', action='store_true', help="Load
 
 args = parser.parse_args()
 
-configuration = json.load(open(args.config, 'r'))
+configuration = check_train_config(args.config, verbose=False)
+if configuration is None:
+    exit(0)
 
 if args.cpu:
     print '=============Ignoring GPU============='
     os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-env = GameEnvironment(configuration)
+train(configuration, 'models/adm_' + args.networks, 'models/evc_' + args.networks,
+      args.preload_admission, args.preload_eviction, n_threads=args.threads)
 
-if args.preload_eviction:
-    print 'Loading pretrained from', 'models/evc_' + args.networks
-    env.model_eviction.load_weights('models/evc_' + args.networks)
-if args.preload_admission:
-    print 'Loading pretrained from', 'models/adm_' + args.networks
-    env.model_admission.load_weights('models/adm_' + args.networks)
-
-n_threads = args.threads
-
-env.train(args.networks, n_threads=args.threads)

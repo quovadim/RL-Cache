@@ -3,12 +3,14 @@ from MLSim import MLSimulator
 from GDSim import GDSimulator
 from LRUSim import LRUSimulator
 
-import sys
 import pickle
 from multiprocessing import Process, Queue
 from copy import deepcopy
 import random
-from tqdm import tqdm
+from os import listdir
+from os.path import isfile, join
+import sys
+import json
 
 
 def to_ts(time_diff):
@@ -467,42 +469,6 @@ def generate_session_continious(
     return lstates, np.asarray(lactions), lstates_adm, np.asarray(lactions_adm), eviction_rating, admission_rating
 
 
-def gen_feature_set(rows, featurer, forget_lambda, memory_vector=None, classical=False, pure=False):
-    feature_matrix = []
-    featurer.reset()
-    counter = 0
-    memory_features = []
-    if memory_vector is None and not classical:
-        memory_vector = np.zeros(featurer.dim)
-
-    iterator = rows
-    if not classical:
-        iterator = tqdm(rows)
-
-    for row in iterator:
-        featurer.update_packet_state(row)
-        if classical:
-            if pure:
-                data = featurer.get_packet_features_pure(row)
-            else:
-                data = featurer.get_packet_features_classical(row)
-        else:
-            data = featurer.get_packet_features(row)
-        feature_matrix.append(data)
-        featurer.update_packet_info(row)
-        counter += 1
-
-    if not classical:
-        for item in feature_matrix:
-            memory_features.append(memory_vector)
-            memory_vector = memory_vector * forget_lambda + item * (1 - forget_lambda)
-        memory_features = np.asarray(memory_features)
-        feature_matrix = np.concatenate([feature_matrix, memory_features], axis=1)
-        return feature_matrix, memory_vector
-
-    return np.asarray(feature_matrix)
-
-
 def iterate_dataset(filenames):
     for fname in filenames:
         names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'log_time',
@@ -526,3 +492,14 @@ def split_feature(feature, perc_steps):
     percentiles = list(np.unique(percentiles))
     percentiles = sorted(percentiles)
     return [(percentiles[i-1], percentiles[i]) for i in range(1, len(percentiles))]
+
+
+def collect_filenames(filepath):
+    filenames = [(join(filepath, f), int(f.replace('.csv', ''))) for f in listdir(filepath)
+                 if isfile(join(filepath, f)) and '.csv' in f and 'lock' not in f]
+    filenames = sorted(filenames, key=lambda x: x[1])
+    return [item[0] for item in filenames]
+
+
+def load_json(filename):
+    return json.load(open(filename, 'r'))

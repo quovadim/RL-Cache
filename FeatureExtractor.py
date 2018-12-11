@@ -1,7 +1,8 @@
-from tqdm import tqdm
-
 from environment_aux import *
 from collections import deque
+
+import numpy as np
+from tqdm import tqdm
 
 feature_names = ['log size',
                  'log frequency',
@@ -82,8 +83,8 @@ class PacketFeaturer:
         self.logical_time = 0
         self.real_time = 0
         names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'exp_recency', 'log_time', 'exp_log']
-        fake_request = dict(zip(names, [1] * len(names)))
-        self.fnum = len(self.get_packet_features_pure(fake_request))
+        self.fake_request = dict(zip(names, [1] * len(names)))
+        self.fnum = len(self.get_packet_features_pure(self.fake_request))
         self.statistics = []
         self.bias = 0
         self.normalization_limit = 0
@@ -92,72 +93,105 @@ class PacketFeaturer:
         self.preserved_logical_time = 0
         self.preserved_real_time = 0
 
-        if config is not None:
-            loading_failed = False
-            self.normalization_limit = config['normalization limit']
-            self.bias = config['bias']
-            print 'Bias', self.bias, 'Normalization', self.normalization_limit
-            if config['load']:
-                try:
-                    with open(config['filename'], 'r') as f:
-                        data = pickle.load(f)
-                        self.feature_mappings = data[0]
-                        self.statistics = data[1]
-                        cstep = data[2]
-                        assert cstep == config['split step']
-                    lindex = 0
-                    if config['show stat']:
-                        for i in range(self.fnum):
-                            print 'Doing', feature_names[i]
-                            print_mappings(self.feature_mappings[i])
-                            print_statistics(self.statistics[lindex:lindex + len(self.feature_mappings[i])])
-                            lindex += len(self.feature_mappings[i])
-                except:
-                    print 'Loading failed'
-                    loading_failed = True
-            if not config['load'] or loading_failed:
-                data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
-                feature_set = np.zeros(shape=(len(data_raw), self.fnum))
-                print 'Loading data'
-                for i in tqdm(range(feature_set.shape[0])):
-                    feature_set[i] = np.array([float(item) for item in data_raw[i].split(' ')[:self.fnum]])
+        self.memory_vector = None
+        self.forget_lambda = 0
 
-                self.feature_mappings = []
-                for i in range(self.fnum):
-                    print 'Doing', feature_names[i]
-                    self.feature_mappings.append(split_feature(feature_set[:, i], config['split step']))
-                    statistics_arrays = []
-                    for _ in range(len(self.feature_mappings[i])):
-                        statistics_arrays.append(deque([]))
-                    for item in tqdm(feature_set[:, i]):
-                        _, feature_index = self.get_feature_vector(i, item)
-                        statistics_arrays[feature_index].append(item)
-                    statistics_vector = [(np.mean(item), np.std(item)) for item in statistics_arrays]
-                    if config['show stat']:
-                        print_mappings(self.feature_mappings[i])
-                        print_statistics(statistics_vector)
-                    self.statistics += statistics_vector
-                if config['save']:
-                    with open(config['filename'], 'w') as f:
-                        pickle.dump([self.feature_mappings, self.statistics, config['split step']], f)
-            self.dim = len(self.get_packet_features(fake_request))
-        else:
-            self.dim = 0
+        self.preserved_memory_vector = None
+
+        self.feature_mappings = []
+        self.dim = 0
+
+        if config is not None:
+                self.apply_config(config)
 
         print 'Features dim', self.dim
+
+        self.full_reset()
+
+    def save_statistics(self, config):
+        with open(config['filename'], 'w') as f:
+            pickle.dump([self.feature_mappings,
+                         self.statistics,
+                         config['split step'],
+                         config['warmup']], f)
+
+    def print_statistics(self):
+        lindex = 0
+        for i in range(self.fnum):
+            print 'Doing', feature_names[i]
+            print_mappings(self.feature_mappings[i])
+            print_statistics(self.statistics[lindex:lindex + len(self.feature_mappings[i])])
+            lindex += len(self.feature_mappings[i])
+
+    def collect_statistics(self, config):
+        data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
+        feature_set = np.zeros(shape=(len(data_raw), self.fnum))
+
+        print 'Loading data'
+
+        for i in tqdm(range(feature_set.shape[0])):
+            feature_set[i] = np.array([float(item) for item in data_raw[i].split(' ')[:self.fnum]])
+
+        for i in range(self.fnum):
+            print 'Doing', feature_names[i]
+            self.feature_mappings.append(split_feature(feature_set[:, i], config['split step']))
+            statistics_arrays = []
+            for _ in range(len(self.feature_mappings[i])):
+                statistics_arrays.append(deque([]))
+            for item in tqdm(feature_set[:, i]):
+                _, feature_index = self.get_feature_vector(i, item)
+                statistics_arrays[feature_index].append(item)
+            statistics_vector = [(np.mean(item), np.std(item)) for item in statistics_arrays]
+            self.statistics += statistics_vector
+
+    def load_statistics(self, config):
+        with open(config['filename'], 'r') as f:
+            data = pickle.load(f)
+            self.feature_mappings = data[0]
+            self.statistics = data[1]
+            assert config['split step'] == data[2]
+            assert config['warmup'] == data[3]
+
+    def apply_config(self, config):
+        self.forget_lambda = config['lambda']
+        loading_failed = False
+        self.normalization_limit = config['normalization limit']
+        self.bias = config['bias']
+        print 'Bias', self.bias, 'Normalization', self.normalization_limit
+        if config['load']:
+            try:
+                self.load_statistics(config)
+            except:
+                print 'Loading failed'
+                loading_failed = True
+
+        if not config['load'] or loading_failed:
+            self.collect_statistics(config)
+            if config['save'] or loading_failed:
+                self.save_statistics(config)
+        if config['show stat']:
+            self.print_statistics()
+        self.dim = len(self.get_packet_features(self.fake_request))
+        self.memory_vector = np.zeros(self.dim)
 
     def reset(self):
         self.logical_time = self.preserved_logical_time
         self.real_time = self.preserved_real_time
+        self.memory_vector = self.preserved_memory_vector
 
     def full_reset(self):
         self.logical_time = 0
         self.real_time = 0
+        if self.dim != 0:
+            self.memory_vector = np.zeros(self.dim)
+        else:
+            self.memory_vector = None
         self.preserve()
 
     def preserve(self):
         self.preserved_logical_time = self.logical_time
         self.preserved_real_time = self.real_time
+        self.preserved_memory_vector = self.memory_vector
 
     def update_packet_state(self, packet):
         self.logical_time += 1
@@ -177,6 +211,38 @@ class PacketFeaturer:
                           float(packet['frequency']) / (1 + self.logical_time)]
 
         return np.asarray(feature_vector)
+
+    def gen_feature_set(self, rows, classical=False, pure=False):
+        feature_matrix = []
+        self.reset()
+        counter = 0
+        memory_features = []
+
+        iterator = rows
+        if not classical:
+            iterator = tqdm(rows)
+
+        for row in iterator:
+            self.update_packet_state(row)
+            if classical:
+                if pure:
+                    data = self.get_packet_features_pure(row)
+                else:
+                    data = self.get_packet_features_classical(row)
+            else:
+                data = self.get_packet_features(row)
+            feature_matrix.append(data)
+            self.update_packet_info(row)
+            counter += 1
+
+        if not classical:
+            for item in feature_matrix:
+                memory_features.append(self.memory_vector)
+                self.memory_vector = self.memory_vector * self.forget_lambda + item * (1 - self.forget_lambda)
+            memory_features = np.asarray(memory_features)
+            feature_matrix = np.concatenate([feature_matrix, memory_features], axis=1)
+
+        return np.asarray(feature_matrix)
 
     def get_packet_features_pure(self, packet):
         feature_vector = []

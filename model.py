@@ -87,3 +87,16 @@ def create_admission_model(config, input_dim, common_model):
     model_admission.compile(optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
     return model_admission
+
+
+def create_models(config, input_dim):
+    wing_size = config["wing size"]
+    last_dim = wing_size * 2 + 1
+
+    if config['use common']:
+        common_model = create_common_model(config, input_dim)
+    else:
+        common_model = None
+    model_admission = create_admission_model(config, input_dim, common_model)
+    model_eviction = create_eviction_model(config, input_dim, common_model)
+    return model_admission, model_eviction, common_model, last_dim
