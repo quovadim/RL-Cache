@@ -331,6 +331,8 @@ def generate_session_continious(
 
     alpha = config['alpha']
 
+    ratings = algorithm.get_ratings()
+
     if config['collect discounted']:
         reward_hits = 0
         reward_total = 0
@@ -383,6 +385,7 @@ def generate_session_continious(
             else:
                 admission_decisions = predictions_adm
             exchanged = True
+            continue
 
         if collect_eviction and not eviction_deterministic and not eviction_defined \
                 and algorithm.prediction_updated_eviction:
@@ -406,6 +409,8 @@ def generate_session_continious(
     if config['collect discounted']:
         eviction_rating = reward_hits / reward_total
         admission_rating = reward_hits / reward_total
+
+    assert algorithm_template.get_ratings() == ratings
 
     return lstates, np.asarray(lactions), lstates_adm, np.asarray(lactions_adm), eviction_rating, admission_rating
 

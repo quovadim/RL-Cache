@@ -18,6 +18,8 @@ def create_common_model(config, input_dim):
     for _ in range(layers_common):
         common_model.add(l.Dropout(dropout_rate))
         common_model.add(l.Dense(input_dim * multiplier_common, activation='elu'))
+        if config['use batch normalization']:
+            common_model.add(l.BatchNormalization())
 
     return common_model
 
@@ -32,10 +34,10 @@ def create_eviction_model(config, input_dim, common_model):
     layers_each = config['layers each']
 
     model_eviction = Sequential()
-    model_eviction.add(l.Dense(input_dim * multiplier_each, input_shape=(2 * input_dim,), activation='elu'))
     if config['use common']:
         model_eviction.add(common_model)
     else:
+        model_eviction.add(l.Dense(input_dim * multiplier_each, input_shape=(2 * input_dim,), activation='elu'))
         if config['use batch normalization']:
             model_eviction.add(l.BatchNormalization())
 
@@ -43,6 +45,9 @@ def create_eviction_model(config, input_dim, common_model):
         model_eviction.add(l.Dropout(dropout_rate))
         model_eviction.add(l.Dense(input_dim * int(multiplier_each * (layers_each - i) / layers_each),
                                    activation='elu'))
+        if config['use batch normalization']:
+            model_eviction.add(l.BatchNormalization())
+
     model_eviction.add(l.Dropout(dropout_rate))
     model_eviction.add(l.Dense(last_dim, activation='softmax'))
 
@@ -61,17 +66,19 @@ def create_admission_model(config, input_dim, common_model):
     layers_each = config['layers each']
 
     model_admission = Sequential()
-    model_admission.add(l.Dense(input_dim * multiplier_each, input_shape=(2 * input_dim,), activation='elu'))
-    if config['use common']:
-        model_admission.add(common_model)
-    else:
+    if not config['use common']:
+        model_admission.add(l.Dense(input_dim * multiplier_each, input_shape=(2 * input_dim,), activation='elu'))
         if config['use batch normalization']:
             model_admission.add(l.BatchNormalization())
+    else:
+        model_admission.add(common_model)
 
     for i in range(layers_each):
         model_admission.add(l.Dropout(dropout_rate))
         model_admission.add(l.Dense(input_dim * int(multiplier_each * (layers_each - i) / layers_each),
                                     activation='elu'))
+        if config['use batch normalization']:
+            model_admission.add(l.BatchNormalization())
     model_admission.add(l.Dropout(dropout_rate))
     model_admission.add(l.Dense(2, activation='softmax'))
 

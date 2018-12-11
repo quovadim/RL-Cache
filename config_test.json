@@ -68,8 +68,8 @@
 			"overlap": 0,
 			"period": 200000,
 
-			"refresh policy": "monotonic",
-			"refresh value": 8,
+			"refresh policy": "static",
+			"refresh value": 3,
 
 			"algorithms": ["SH-GDSF", "SH-LRU", "SH-LFU", "SH-Oracle"],
 

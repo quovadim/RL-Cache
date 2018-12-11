@@ -2,6 +2,7 @@ import numpy as np
 from tqdm import tqdm
 import sys
 from environment_aux import *
+from collections import deque
 
 
 def collect_features(output_filename, t_max, filenames):
@@ -41,6 +42,23 @@ def collect_features(output_filename, t_max, filenames):
     output_file.close()
 
 
+def print_mappings(mappings):
+    mappings_flat = [item[0] for item in mappings] + [mappings[len(mappings) - 1][1]]
+    pdata = ['{:^20.5f}'] * len(mappings_flat)
+    pstr = ' '.join(pdata)
+    print pstr.format(*mappings_flat)
+
+
+def print_statistics(statistics):
+    stat_vector = []
+    p_vector = []
+    for mean, std in statistics:
+        stat_vector.append(mean)
+        stat_vector.append(std)
+        p_vector.append('M:{:^20.5f} V:{:^20.5f}')
+    print ' '.join(p_vector).format(*stat_vector)
+
+
 class PacketFeaturer:
     def __init__(self, config):
         self.logical_time = 0
@@ -50,27 +68,44 @@ class PacketFeaturer:
         fake_request = dict(zip(names, [1] * len(names)))
         self.fnum = len(self.get_packet_features_pure(fake_request))
         self.statistics = []
+        self.bias = 0
+        self.normalization_limit = 0
         print 'Real features', self.fnum
         if config is not None:
             data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
             feature_set = np.zeros(shape=(len(data_raw), self.fnum))
+            self.normalization_limit = config['normalization limit']
+            self.bias = config['bias']
+            print 'Bias', self.bias, 'Normalization', self.normalization_limit
             print 'Loading data'
             for i in tqdm(range(feature_set.shape[0])):
-                feature_set[i] = np.array([float(item) for item in data_raw[i].split(' ')])
+                feature_set[i] = np.array([float(item) for item in data_raw[i].split(' ')[:self.fnum]])
 
             self.feature_mappings = []
-
+            feature_names = ['size',
+                             'frequency',
+                             'gdsf',
+                             'time recency',
+                             'request recency',
+                             'exponential time recency',
+                             'exponential request recency']
             for i in range(self.fnum):
+                print 'Doing', feature_names[i]
                 self.feature_mappings.append(split_feature(feature_set[:, i], config['split step']))
-                statistics_arrays = [[]] * len(self.feature_mappings[i])
+                statistics_arrays = []
+                for _ in range(len(self.feature_mappings[i])):
+                    statistics_arrays.append(deque([]))
                 for item in tqdm(feature_set[:, i]):
-                    feature_index = self.get_feature_vector(i, item, return_index=True)
+                    _, feature_index = self.get_feature_vector(i, item)
                     statistics_arrays[feature_index].append(item)
                 statistics_vector = [(np.mean(item), np.std(item)) for item in statistics_arrays]
+                print_mappings(self.feature_mappings[i])
+                print_statistics(statistics_vector)
                 self.statistics += statistics_vector
             self.dim = len(self.get_packet_features(fake_request))
         else:
             self.dim = 0
+
         print 'Features dim', self.dim
 
         self.preserved_logical_time = 0
@@ -110,22 +145,23 @@ class PacketFeaturer:
                           packet['timestamp'],
                           self.observation_flag(packet),
                           float(packet['frequency']) * (float(packet['size'])),
-                          float(packet['frequency'])]
+                          float(packet['frequency']) / (1 + self.logical_time)]
+
         return np.asarray(feature_vector)
 
     def get_packet_features_pure(self, packet):
         feature_vector = []
 
-        feature_vector.append(float(packet['size']))
+        feature_vector.append(np.log(1 + float(packet['size'])))
 
         feature_vector.append(-np.log(1e-10 + float(packet['frequency']) / (1 + self.logical_time)))
 
-        feature_vector.append(np.log(1e-10 + float(packet['frequency']) / float(packet['size'])))
+        feature_vector.append(np.log(float(packet['frequency'])) - np.log(float(packet['size'])))
 
-        feature_vector.append(float(self.real_time - packet['lasp_app']))
-        feature_vector.append(float(self.logical_time - packet['log_time']))
-        feature_vector.append(float(packet['exp_recency']))
-        feature_vector.append(float(packet['exp_log']))
+        feature_vector.append(np.log(2 + float(self.real_time - packet['lasp_app'])))
+        feature_vector.append(np.log(2 + float(self.logical_time - packet['log_time'])))
+        feature_vector.append(np.log(2 + float(packet['exp_recency'])))
+        feature_vector.append(np.log(2 + float(packet['exp_log'])))
         #was_seen = -1.
         #if packet['id'] in self.was_seen:
         #    was_seen = 1.
@@ -134,34 +170,51 @@ class PacketFeaturer:
         features = np.asarray(feature_vector)
         return features
 
-    def get_feature_vector(self, feature_index, feature_value, return_index=False):
+    def get_feature_vector(self, feature_index, feature_value):
         tlen = len(self.feature_mappings[feature_index])
         addition = [0] * tlen
         counter = 0
+        mlow = self.feature_mappings[feature_index][0][0]
+        if feature_value < mlow:
+            addition[counter] = feature_value
+            return addition, counter
+        mhigh = self.feature_mappings[feature_index][tlen - 1][1]
+        if feature_value > mhigh:
+            addition[tlen - 1] = feature_value
+            counter = tlen - 1
+            return addition, counter
+
         for low, up in self.feature_mappings[feature_index]:
             if low <= feature_value <= up:
                 addition[counter] = feature_value
-                break
+                return addition, counter
             counter += 1
-        if return_index:
-            return counter
-        else:
-            return np.asarray(addition)
 
-    def get_packet_features_from_pure(self, pure_features):
+        assert False
+
+    def get_packet_features_from_pure(self, pure_features, return_statistics=False):
         result = []
+        statistics = []
         for i in range(self.fnum):
-            result += self.get_feature_vector(i, pure_features[i]).tolist()
+            feature_vector, index = self.get_feature_vector(i, pure_features[i])
+            stat_vector = [0] * len(feature_vector)
+            stat_vector[index] = 1
+            statistics += stat_vector
+            result += feature_vector
         result_features = np.asarray(result)
+        if return_statistics:
+            return result_features, statistics
         return result_features
 
-    def apply_statistics(self, result_features):
+    def apply_statistics(self, result_features, statistics):
         result = [0] * len(result_features)
         for i in range(len(result_features)):
-            if result_features[i] != 0:
-                result[i] = min(10, max(-10, (result_features[i] - self.statistics[i][0]) / (self.statistics[i][1])))
+            if statistics[i] != 0:
+                result[i] = self.bias + min(1, max(-1, (result_features[i] - self.statistics[i][0]) / (
+                        1e-4 + self.normalization_limit * self.statistics[i][1])))
         return np.asarray(result)
 
     def get_packet_features(self, packet):
         feature_vector = self.get_packet_features_pure(packet)
-        return self.apply_statistics(self.get_packet_features_from_pure(feature_vector))
+        corrected_features, statistics = self.get_packet_features_from_pure(feature_vector, return_statistics=True)
+        return self.apply_statistics(corrected_features, statistics)

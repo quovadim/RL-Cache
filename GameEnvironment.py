@@ -194,6 +194,8 @@ class GameEnvironment:
             ml_features = None
             classical_features = None
 
+            addition_history = []
+
             for row in iterate_dataset(self.filenames):
                 if counter > requests_max:
                     break
@@ -259,12 +261,17 @@ class GameEnvironment:
                     continue
 
                 algorithms_copy = {}
+                algorithms_copy_states = {}
                 for key in algorithms.keys():
                     algorithms_copy[key] = copy_object(algorithms[key])
+                    algorithms_copy_states[key] = algorithms_copy[key].get_ratings()
                     algorithms_copy[key].reset()
 
                 test_algorithms(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
                                 base_iteration=base_iteration, special_keys=special_keys)
+
+                for key in algorithms_copy_states.keys():
+                    assert algorithms_copy_states[key] == algorithms[key].get_ratings()
 
                 bool_array = [[train_eviction, train_admission]] * repetitions
 
@@ -277,6 +284,22 @@ class GameEnvironment:
                     if drop:
                         states_adm, actions_adm, rewards_adm = [], [], []
                         states_evc, actions_evc, rewards_evc = [], [], []
+                        addition_history = []
+                    else:
+                        indicies_to_remove = []
+                        for i in range(len(addition_history)):
+                            if repetition - addition_history[i] >= self.config['training']['store period']:
+                                indicies_to_remove.append(i)
+                        for index in indicies_to_remove:
+                            if local_train_eviction:
+                                del states_evc[index]
+                                del actions_evc[index]
+                                del rewards_evc[index]
+                            if local_train_admission:
+                                del states_adm[index]
+                                del actions_adm[index]
+                                del rewards_adm[index]
+                            del addition_history[index]
 
                     sessions = []
                     admission_skipped = not local_train_admission
@@ -318,6 +341,7 @@ class GameEnvironment:
                                 results = [item for item in results if item[4] > dump_percentile]
                         if results:
                             sessions += results
+                            addition_history += [repetition] * len(results)
 
                     for se, ae, sa, aa, re, ra in sessions:
                         states_evc.append(se)
