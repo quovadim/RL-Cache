@@ -224,10 +224,11 @@ def train_model(percentile,
                 answers_embedding,
                 epochs,
                 batch_size,
+                max_samples,
                 label):
     if percentile is not None:
         percentile = np.percentile(rewards, percentile)
-    elite_states, elite_actions, percentile_value = select_elites(states, actions, rewards, percentile)
+    elite_states, elite_actions, percentile_value = select_elites(states, actions, rewards, percentile, max_samples)
 
     data = sampling(predictions)
     unique_sampled = get_unique_dict(data, range(predictions.shape[1]))

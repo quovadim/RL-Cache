@@ -376,6 +376,7 @@ class GameEnvironment:
                                 s_actions_adm,
                                 epochs,
                                 batch_size,
+                                self.config['max samples'],
                                 'Admission')
 
                     self.model_admission.save_weights('models/adm_' + output_suffix)
@@ -393,6 +394,7 @@ class GameEnvironment:
                                 s_actions_evc,
                                 epochs,
                                 batch_size,
+                                self.config['max samples'],
                                 'Eviction')
 
                     self.model_eviction.save_weights('models/evc_' + output_suffix)

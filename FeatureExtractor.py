@@ -1,13 +1,25 @@
 from tqdm import tqdm
-import pickle
 
 from environment_aux import *
 from collections import deque
+
+feature_names = ['log size',
+                 'log frequency',
+                 'gdsf',
+                 'frequency',
+                 'log gdsf',
+                 'log bhr',
+                 'log time recency',
+                 'log request recency',
+                 'log exp time recency',
+                 'log exp request recency']
 
 
 def collect_features(output_filename, t_max, filenames):
     feature_matrix = []
     counter = 0
+
+    summary = np.zeros((len(feature_names),))
 
     featurer = PacketFeaturer(None)
 
@@ -15,7 +27,8 @@ def collect_features(output_filename, t_max, filenames):
 
     try:
         for row in iterate_dataset(filenames):
-            if counter % 50000 == 0:
+            if counter != 0 and counter % 50000 == 0:
+                summary += np.sum(feature_matrix, axis=0)
                 for item in feature_matrix:
                     output_file.write(' '.join([str(element) for element in item]) + '\n')
                 feature_matrix = []
@@ -24,12 +37,17 @@ def collect_features(output_filename, t_max, filenames):
             featurer.update_packet_state(row)
             data = featurer.get_packet_features_pure(row).tolist()
             feature_matrix.append(np.asarray(data))
-            if counter % 5000 == 0:
+            if counter != 0 and counter % 5000 == 0:
                 d = featurer.fnum
-                str_formatted = ' '.join(['{:^7.4f}' for _ in range(d)])
-                str_formatted = '{:10d}  ' + str_formatted
-                means = np.mean(feature_matrix, axis=0).tolist()
-                str_formatted = str_formatted.format(*([counter] + means))
+                str_formatted = ' '.join(['{:^8s}: {:^6.4f}' for _ in range(d)])
+                str_formatted = '{:8d}  ' + str_formatted
+                mean_list = summary / counter
+                name_list = [item[:10] for item in feature_names]
+                common = [counter]
+                for i in range(len(name_list)):
+                    common.append(name_list[i])
+                    common.append(mean_list[i])
+                str_formatted = str_formatted.format(*(common))
                 sys.stdout.write('\r' + str_formatted)
                 sys.stdout.flush()
             featurer.update_packet_info(row)
@@ -73,15 +91,6 @@ class PacketFeaturer:
 
         self.preserved_logical_time = 0
         self.preserved_real_time = 0
-
-        feature_names = ['size',
-                         'frequency',
-                         'gdsf',
-                         'bhr',
-                         'time recency',
-                         'request recency',
-                         'exponential time recency',
-                         'exponential request recency']
 
         if config is not None:
             loading_failed = False
@@ -176,9 +185,13 @@ class PacketFeaturer:
 
         feature_vector.append(-np.log(1e-4 + float(packet['frequency']) / (1 + self.logical_time)))
 
-        feature_vector.append(feature_vector[1] - feature_vector[0])
+        feature_vector.append(float(packet['frequency']) / float(packet['size']))
 
-        feature_vector.append(feature_vector[1] + feature_vector[0])
+        feature_vector.append(float(packet['frequency']) / (1 + self.logical_time))
+
+        feature_vector.append(-1 * feature_vector[1] - feature_vector[0])
+
+        feature_vector.append(-1 * feature_vector[1] + feature_vector[0])
 
         feature_vector.append(np.log(2 + float(self.real_time - packet['lasp_app'])))
         feature_vector.append(np.log(2 + float(self.logical_time - packet['log_time'])))
