@@ -7,7 +7,7 @@ import sys
 import pickle
 from multiprocessing import Process, Queue
 from copy import deepcopy
-from tqdm import tqdm
+import random
 
 
 def to_ts(time_diff):
@@ -305,6 +305,34 @@ def test_algorithms(algorithms,
         pickle.dump(history, open(output_file, 'w'))
 
 
+def get_session_features(bool_eviction, bool_admission, predictions_evc, predictions_adm):
+    eviction_defined, eviction_deterministic = bool_eviction
+    admission_defined, admission_deterministic = bool_admission
+    if not eviction_defined:
+        if eviction_deterministic:
+            eviction_decisions = np.argmax(predictions_evc, axis=1)
+        else:
+            eviction_decisions = sampling(predictions_evc)
+        evc_decision_values = eviction_decisions
+        eviction_decisions = [compute_rating(eviction_decisions[i], len(predictions_evc[i]))
+                              for i in range(len(eviction_decisions))]
+    else:
+        evc_decision_values = None
+        eviction_decisions = predictions_evc
+
+    if not admission_defined:
+        if admission_deterministic:
+            admission_decisions = np.argmax(predictions_adm, axis=1)
+        else:
+            admission_decisions = sampling(predictions_adm)
+        adm_decision_values = admission_decisions
+        admission_decisions = [bool(admission_decisions[i] == 1) for i in range(len(eviction_decisions))]
+    else:
+        adm_decision_values = None
+        admission_decisions = predictions_adm
+    return evc_decision_values, eviction_decisions, adm_decision_values, admission_decisions
+
+
 def generate_session_continious(
         predictions_evc,
         predictions_adm,
@@ -339,26 +367,11 @@ def generate_session_continious(
         gamma = config['gamma'] ** (1.0/len(rows))
         multiplier = 1
 
-    if not eviction_defined:
-        if eviction_deterministic:
-            eviction_decisions = np.argmax(predictions_evc, axis=1)
-        else:
-            eviction_decisions = sampling(predictions_evc)
-        evc_decision_values = eviction_decisions
-        eviction_decisions = [compute_rating(eviction_decisions[i], len(predictions_evc[i]))
-                              for i in range(len(eviction_decisions))]
-    else:
-        eviction_decisions = predictions_evc
-
-    if not admission_defined:
-        if admission_deterministic:
-            admission_decisions = np.argmax(predictions_adm, axis=1)
-        else:
-            admission_decisions = sampling(predictions_adm)
-        adm_decision_values = admission_decisions
-        admission_decisions = [bool(admission_decisions[i] == 1) for i in range(len(eviction_decisions))]
-    else:
-        admission_decisions = predictions_adm
+    evc_decision_values, eviction_decisions, adm_decision_values, admission_decisions = \
+        get_session_features((eviction_defined, eviction_deterministic),
+                             (admission_defined, admission_deterministic),
+                             predictions_evc,
+                             predictions_adm)
 
     exchanged = False
 
@@ -375,15 +388,24 @@ def generate_session_continious(
             continue
 
         if config['randomness change'] and i > config['point of change']:
-            if not eviction_defined:
-                eviction_decisions = np.argmax(predictions_evc, axis=1)
-            else:
-                eviction_decisions = predictions_evc
+            eviction_deterministic = True
+            admission_deterministic = True
+            _, eviction_decisions, _, admission_decisions = \
+                get_session_features((eviction_defined, eviction_deterministic),
+                                     (admission_defined, admission_deterministic),
+                                     predictions_evc,
+                                     predictions_adm)
+            exchanged = True
+            continue
 
-            if not admission_defined:
-                admission_decisions = np.argmax(predictions_adm, axis=1)
-            else:
-                admission_decisions = predictions_adm
+        if config['seeded change'] and i > config['point of change']:
+            np.random.seed(config['seed'])
+            random.seed(config['seed'])
+            _, eviction_decisions, _, admission_decisions = \
+                get_session_features((eviction_defined, eviction_deterministic),
+                                     (admission_defined, admission_deterministic),
+                                     predictions_evc,
+                                     predictions_adm)
             exchanged = True
             continue
 
