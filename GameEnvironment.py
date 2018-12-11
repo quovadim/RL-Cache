@@ -109,7 +109,6 @@ class GameEnvironment:
         warmup_period = self.config['training']['warmup']
         batch_size = self.config['batch size']
         runs = self.config['training']['runs']
-        requests_max = self.config['training']['requests max']
         period = self.config['training']['period']
         forget_lambda = self.config['lambda features']
         repetitions = self.config['training']['repetitions']
@@ -124,16 +123,12 @@ class GameEnvironment:
         s_actions_evc = np.diag(np.ones((self.last_dim,)))
         s_actions_adm = np.diag(np.ones((2,)))
 
-        requests_max += warmup_period
-
         refresh_value = self.config['training']['refresh value']
-        iteration = 0
         warming_to_required_state = False
         additional_warming = -1
         empty_loops = 0
 
-        while iteration < runs:
-            counter = 0
+        for iteration in range(runs):
             current_rows = []
             memory_vector = None
 
@@ -201,9 +196,6 @@ class GameEnvironment:
             addition_history = []
 
             for row in iterate_dataset(self.filenames):
-                if counter >= requests_max:
-                    iteration += 1
-                    break
 
                 current_rows.append(row)
 
@@ -211,8 +203,6 @@ class GameEnvironment:
                         (not skip_required and not warming_to_required_state and len(current_rows) != period) or \
                         (not skip_required and warming_to_required_state and len(current_rows) != step):
                     continue
-
-                counter += len(current_rows)
 
                 if ml_features is None:
                     ml_features, memory_vector = gen_feature_set(current_rows, self.featurer, forget_lambda,
@@ -273,170 +263,168 @@ class GameEnvironment:
 
                     if skip_required:
                         skip_required = False
-                    if not skip_required and not warming_to_required_state:
-                        for key in algorithms.keys():
-                            algorithms[key].reset()
+
+                    for key in algorithms.keys():
+                        algorithms[key].reset()
                     continue
+                else:
+                    break
 
-                algorithms_copy = {}
-                algorithms_copy_states = {}
-                for key in algorithms.keys():
-                    algorithms_copy[key] = copy_object(algorithms[key])
-                    algorithms_copy_states[key] = algorithms_copy[key].get_ratings()
-                    algorithms_copy[key].reset()
+            algorithms_copy = {}
+            algorithms_copy_states = {}
+            for key in algorithms.keys():
+                algorithms_copy[key] = copy_object(algorithms[key])
+                algorithms_copy_states[key] = algorithms_copy[key].get_ratings()
 
-                test_algorithms(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                                base_iteration=base_iteration, special_keys=special_keys)
+            test_algorithms(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
+                            base_iteration=base_iteration, special_keys=special_keys)
 
-                for key in algorithms_copy_states.keys():
-                    assert algorithms_copy_states[key] == algorithms[key].get_ratings()
+            for key in algorithms_copy_states.keys():
+                assert algorithms_copy_states[key] == algorithms[key].get_ratings()
 
-                bool_array = [[train_eviction, train_admission]] * repetitions
+            bool_array = [[train_eviction, train_admission]] * repetitions
 
-                states_adm, actions_adm, rewards_adm = [], [], []
-                states_evc, actions_evc, rewards_evc = [], [], []
+            states_adm, actions_adm, rewards_adm = [], [], []
+            states_evc, actions_evc, rewards_evc = [], [], []
 
-                for repetition in range(repetitions):
-                    local_train_eviction, local_train_admission = bool_array[repetition]
+            for repetition in range(repetitions):
+                local_train_eviction, local_train_admission = bool_array[repetition]
 
-                    print 'Repetition', repetition
+                print 'Repetition', repetition + 1, 'out of', repetitions
 
-                    if drop:
-                        states_adm, actions_adm, rewards_adm = [], [], []
-                        states_evc, actions_evc, rewards_evc = [], [], []
-                        addition_history = []
-                    else:
-                        indicies_to_remove = []
-                        for i in range(len(addition_history)):
-                            if repetition - addition_history[i] >= self.config['training']['store period']:
-                                indicies_to_remove.append(i)
-                        for index in indicies_to_remove:
-                            try:
-                                if local_train_eviction:
-                                    del states_evc[index]
-                                    del actions_evc[index]
-                                    del rewards_evc[index]
-                                if local_train_admission:
-                                    del states_adm[index]
-                                    del actions_adm[index]
-                                    del rewards_adm[index]
-                                del addition_history[index]
-                            except IndexError:
-                                continue
+                if drop:
+                    states_adm, actions_adm, rewards_adm = [], [], []
+                    states_evc, actions_evc, rewards_evc = [], [], []
+                    addition_history = []
+                else:
+                    indicies_to_remove = []
+                    for i in range(len(addition_history)):
+                        if repetition - addition_history[i] >= self.config['training']['store period']:
+                            indicies_to_remove.append(i)
+                    for index in indicies_to_remove:
+                        try:
+                            if local_train_eviction:
+                                del states_evc[index]
+                                del actions_evc[index]
+                                del rewards_evc[index]
+                            if local_train_admission:
+                                del states_adm[index]
+                                del actions_adm[index]
+                                del rewards_adm[index]
+                            del addition_history[index]
+                        except IndexError:
+                            continue
 
-                    sessions = []
-                    admission_skipped = not local_train_admission
-                    eviction_skipped = not local_train_eviction
-                    predictions_admission = decisions_adm[self.config['training']['target'] + '-RNG']
-                    if local_train_admission:
-                        predictions_admission = self.model_admission.predict(ml_features,
-                                                                             batch_size=batch_size,
-                                                                             verbose=0)
-                    predictions_eviction = decisions_evc[self.config['training']['target'] + '-RNG']
-                    if local_train_eviction:
-                        predictions_eviction = self.model_eviction.predict(ml_features,
-                                                                           batch_size=batch_size,
-                                                                           verbose=0)
-                    for i in tqdm(range(0, samples, n_threads)):
-                        steps = min(n_threads, samples - i)
-                        threads = [None] * steps
-                        results = [None] * steps
-                        for thread_number in range(min(n_threads,  steps)):
-                            threads[thread_number] = threaded(generate_session_continious)(
-                                predictions_eviction,
+                sessions = []
+                admission_skipped = not local_train_admission
+                eviction_skipped = not local_train_eviction
+                predictions_admission = decisions_adm[self.config['training']['target'] + '-RNG']
+                if local_train_admission:
+                    predictions_admission = self.model_admission.predict(ml_features,
+                                                                         batch_size=batch_size,
+                                                                         verbose=0)
+                predictions_eviction = decisions_evc[self.config['training']['target'] + '-RNG']
+                if local_train_eviction:
+                    predictions_eviction = self.model_eviction.predict(ml_features,
+                                                                       batch_size=batch_size,
+                                                                       verbose=0)
+                for i in tqdm(range(0, samples, n_threads)):
+                    steps = min(n_threads, samples - i)
+                    threads = [None] * steps
+                    results = [None] * steps
+                    for thread_number in range(min(n_threads,  steps)):
+                        threads[thread_number] = threaded(generate_session_continious)(
+                            predictions_eviction,
+                            predictions_admission,
+                            current_rows,
+                            algorithm_rng,
+                            self.config['training']['session configuration'],
+                            eviction_deterministic=eviction_classical,
+                            collect_eviction=local_train_eviction,
+                            eviction_defined=eviction_classical,
+                            admission_deterministic=admission_classical,
+                            collect_admission=local_train_admission,
+                            admission_defined=admission_classical)
+
+                    for thread_number in range(min(n_threads, steps)):
+                        results[thread_number] = threads[thread_number].result_queue.get()
+                    if self.config['training']['dump sessions']:
+                        if len(sessions) > self.config['training']['dump limit']:
+                            dump_percentile = np.percentile([item[4] for item in sessions],
+                                                            self.config['training']['dump percentile'])
+                            results = [item for item in results if item[4] > dump_percentile]
+                    if results:
+                        sessions += results
+                        addition_history += [repetition] * len(results)
+
+                for se, ae, sa, aa, re, ra in sessions:
+                    states_evc.append(se)
+                    states_adm.append(sa)
+                    actions_evc.append(ae)
+                    actions_adm.append(aa)
+                    rewards_evc.append(re)
+                    rewards_adm.append(ra)
+
+                if local_train_admission and np.std(rewards_adm) > 1e-6:
+                    train_model(percentile_admission,
+                                self.model_admission,
+                                rewards_adm,
+                                states_adm,
+                                actions_adm,
                                 predictions_admission,
-                                current_rows,
-                                algorithm_rng,
-                                self.config['training']['session configuration'],
-                                eviction_deterministic=eviction_classical,
-                                collect_eviction=local_train_eviction,
-                                eviction_defined=eviction_classical,
-                                admission_deterministic=admission_classical,
-                                collect_admission=local_train_admission,
-                                admission_defined=admission_classical)
+                                ml_features,
+                                s_actions_adm,
+                                epochs,
+                                batch_size,
+                                'Admission')
 
-                        for thread_number in range(min(n_threads, steps)):
-                            results[thread_number] = threads[thread_number].result_queue.get()
-                        if self.config['training']['dump sessions']:
-                            if len(sessions) > self.config['training']['dump limit']:
-                                dump_percentile = np.percentile([item[4] for item in sessions],
-                                                                self.config['training']['dump percentile'])
-                                results = [item for item in results if item[4] > dump_percentile]
-                        if results:
-                            sessions += results
-                            addition_history += [repetition] * len(results)
+                    self.model_admission.save_weights('models/adm_' + output_suffix)
+                else:
+                    admission_skipped = True
 
-                    for se, ae, sa, aa, re, ra in sessions:
-                        states_evc.append(se)
-                        states_adm.append(sa)
-                        actions_evc.append(ae)
-                        actions_adm.append(aa)
-                        rewards_evc.append(re)
-                        rewards_adm.append(ra)
+                if local_train_eviction and np.std(rewards_evc) > 1e-6:
+                    train_model(percentile_eviction,
+                                self.model_eviction,
+                                rewards_evc,
+                                states_evc,
+                                actions_evc,
+                                predictions_eviction,
+                                ml_features,
+                                s_actions_evc,
+                                epochs,
+                                batch_size,
+                                'Eviction')
 
-                    if local_train_admission and np.std(rewards_adm) > 1e-6:
-                        train_model(percentile_admission,
-                                    self.model_admission,
-                                    rewards_adm,
-                                    states_adm,
-                                    actions_adm,
-                                    predictions_admission,
-                                    ml_features,
-                                    s_actions_adm,
-                                    epochs,
-                                    batch_size,
-                                    'Admission')
+                    self.model_eviction.save_weights('models/evc_' + output_suffix)
+                else:
+                    eviction_skipped = True
 
-                        self.model_admission.save_weights('models/adm_' + output_suffix)
-                    else:
-                        admission_skipped = True
+                if admission_skipped and eviction_skipped:
+                    break
 
-                    if local_train_eviction and np.std(rewards_evc) > 1e-6:
-                        train_model(percentile_eviction,
-                                    self.model_eviction,
-                                    rewards_evc,
-                                    states_evc,
-                                    actions_evc,
-                                    predictions_eviction,
-                                    ml_features,
-                                    s_actions_evc,
-                                    epochs,
-                                    batch_size,
-                                    'Eviction')
+            decisions_adm, decisions_evc = generate_data_for_models(
+                algorithms.keys(),
+                algorithms_data,
+                classical_features,
+                ml_features,
+                self.model_admission,
+                self.model_eviction,
+                self.config['batch size']
+            )
 
-                        self.model_eviction.save_weights('models/evc_' + output_suffix)
-                    else:
-                        eviction_skipped = True
+            test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
+                            base_iteration=base_iteration, special_keys=special_keys)
 
-                    if admission_skipped and eviction_skipped:
-                        break
+            base_iteration += step
 
-                decisions_adm, decisions_evc = generate_data_for_models(
-                    algorithms.keys(),
-                    algorithms_data,
-                    classical_features,
-                    ml_features,
-                    self.model_admission,
-                    self.model_eviction,
-                    self.config['batch size']
-                )
+            del states_evc
+            del states_adm
+            del rewards_evc
+            del rewards_adm
+            del actions_evc
+            del actions_adm
 
-                for key in algorithms.keys():
-                    algorithms[key].reset()
+            additional_warming += 1
+            warming_to_required_state = True
+            empty_loops = 0
 
-                test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                                base_iteration=base_iteration, special_keys=special_keys)
-
-                base_iteration += step
-
-                del states_evc
-                del states_adm
-                del rewards_evc
-                del rewards_adm
-                del actions_evc
-                del actions_adm
-
-                additional_warming += 1
-                warming_to_required_state = True
-                empty_loops = 0
-                break

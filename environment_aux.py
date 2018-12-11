@@ -236,11 +236,13 @@ def train_model(percentile,
     v = model.fit(features_embedding[elite_states], answers_embedding[elite_actions],
                   epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
 
-    print 'Accuracy: {:7.4f}% Loss: {:7.5f} Mean: {:7.4f}% Percentile: {:7.4f}%'.format(
+    print 'Accuracy: {:7.4f}% Loss: {:7.5f} Mean: {:7.4f}% Median: {:7.4f}% Percentile: {:7.4f}% Max: {:7.4f}%'.format(
         100 * np.mean(v.history['acc'][0]),
         np.mean(v.history['loss'][0]),
         100 * np.mean(rewards),
-        100 * percentile_value)
+        100 * np.median(rewards),
+        100 * percentile_value,
+        100 * max(rewards))
 
 
 def test_algorithms(algorithms,
