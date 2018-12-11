@@ -318,16 +318,21 @@ class GameEnvironment:
                 sessions = []
                 admission_skipped = not local_train_admission
                 eviction_skipped = not local_train_eviction
-                predictions_admission = decisions_adm[self.config['training']['target'] + '-RNG']
-                if local_train_admission:
-                    predictions_admission = self.model_admission.predict(ml_features,
-                                                                         batch_size=batch_size,
-                                                                         verbose=0)
-                predictions_eviction = decisions_evc[self.config['training']['target'] + '-RNG']
-                if local_train_eviction:
-                    predictions_eviction = self.model_eviction.predict(ml_features,
-                                                                       batch_size=batch_size,
-                                                                       verbose=0)
+                if not admission_classical:
+                    if local_train_admission or repetition == 0:
+                        predictions_admission = self.model_admission.predict(ml_features,
+                                                                             batch_size=batch_size,
+                                                                             verbose=0)
+                else:
+                    predictions_admission = decisions_adm[self.config['training']['target'] + '-RNG']
+                if not eviction_classical:
+                    if local_train_eviction or repetition == 0:
+                        predictions_eviction = self.model_eviction.predict(ml_features,
+                                                                           batch_size=batch_size,
+                                                                           verbose=0)
+                else:
+                    predictions_eviction = decisions_evc[self.config['training']['target'] + '-RNG']
+
                 for i in tqdm(range(0, samples, n_threads)):
                     steps = min(n_threads, samples - i)
                     threads = [None] * steps
@@ -376,7 +381,7 @@ class GameEnvironment:
                                 s_actions_adm,
                                 epochs,
                                 batch_size,
-                                self.config['max samples'],
+                                self.config['training']['max samples'],
                                 'Admission')
 
                     self.model_admission.save_weights('models/adm_' + output_suffix)
@@ -394,7 +399,7 @@ class GameEnvironment:
                                 s_actions_evc,
                                 epochs,
                                 batch_size,
-                                self.config['max samples'],
+                                self.config['training']['max samples'],
                                 'Eviction')
 
                     self.model_eviction.save_weights('models/evc_' + output_suffix)
