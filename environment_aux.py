@@ -148,13 +148,18 @@ def get_unique_dict(data, labels=None):
     return result_data
 
 
-def select_elites(states, actions, rewards, percentile):
+def select_elites(states, actions, rewards, percentile, max_samples):
     percentile_value = percentile
     if percentile is not None:
         elite_indicies = [i for i in range(len(rewards)) if rewards[i] >= percentile]
     else:
         elite_indicies = [np.argmax(rewards)]
         percentile_value = max(rewards)
+    if len(elite_indicies) > max_samples:
+        selite = [(item, rewards[item]) for item in elite_indicies]
+        selite = sorted(selite, key=lambda x: x[0], reverse=True)
+        elite_indicies = [item[0] for item in selite[:max_samples]]
+        percentile_value = selite[max_samples - 1][1]
     elite_states = np.concatenate([states[i] for i in elite_indicies], axis=0)
     elite_actions = np.concatenate([actions[i] for i in elite_indicies], axis=0)
     return elite_states, elite_actions, percentile_value
@@ -236,7 +241,11 @@ def train_model(percentile,
     v = model.fit(features_embedding[elite_states], answers_embedding[elite_actions],
                   epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
 
-    print 'Accuracy: {:7.4f}% Loss: {:7.5f} Mean: {:7.4f}% Median: {:7.4f}% Percentile: {:7.4f}% Max: {:7.4f}%'.format(
+    samples = [i for i in range(len(rewards)) if rewards[i] >= percentile]
+
+    print 'Samples: {:6d} Accuracy: {:7.4f}% Loss: {:7.5f} ' \
+          'Mean: {:7.4f}% Median: {:7.4f}% Percentile: {:7.4f}% Max: {:7.4f}%'.format(
+        len(samples),
         100 * np.mean(v.history['acc'][0]),
         np.mean(v.history['loss'][0]),
         100 * np.mean(rewards),

@@ -44,7 +44,7 @@ def collect_features(output_filename, t_max, filenames):
 
 def print_mappings(mappings):
     mappings_flat = [item[0] for item in mappings] + [mappings[len(mappings) - 1][1]]
-    pdata = ['A: {:5.3f}'] * len(mappings_flat[:min(10, len(mappings_flat))])
+    pdata = ['A: {:5.3f}'] * len(mappings_flat[:min(17, len(mappings_flat))])
     pstr = ' | '.join(pdata)
     print pstr.format(*mappings_flat)
 
@@ -63,7 +63,6 @@ class PacketFeaturer:
     def __init__(self, config):
         self.logical_time = 0
         self.real_time = 0
-        self.was_seen = []
         names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'exp_recency', 'log_time', 'exp_log']
         fake_request = dict(zip(names, [1] * len(names)))
         self.fnum = len(self.get_packet_features_pure(fake_request))
@@ -74,32 +73,40 @@ class PacketFeaturer:
 
         self.preserved_logical_time = 0
         self.preserved_real_time = 0
-        self.preserved_was_seen = []
 
         feature_names = ['size',
                          'frequency',
                          'gdsf',
+                         'bhr',
                          'time recency',
                          'request recency',
                          'exponential time recency',
                          'exponential request recency']
 
         if config is not None:
+            loading_failed = False
             self.normalization_limit = config['normalization limit']
             self.bias = config['bias']
             print 'Bias', self.bias, 'Normalization', self.normalization_limit
             if config['load']:
-                with open(config['filename'], 'r') as f:
-                    data = pickle.load(f)
-                    self.feature_mappings = data[0]
-                    self.statistics = data[1]
-                lindex = 0
-                for i in range(self.fnum):
-                    print 'Doing', feature_names[i]
-                    print_mappings(self.feature_mappings[i])
-                    print_statistics(self.statistics[lindex:lindex + len(self.feature_mappings[i])])
-                    lindex += len(self.feature_mappings[i])
-            else:
+                try:
+                    with open(config['filename'], 'r') as f:
+                        data = pickle.load(f)
+                        self.feature_mappings = data[0]
+                        self.statistics = data[1]
+                        cstep = data[2]
+                        assert cstep == config['split step']
+                    lindex = 0
+                    if config['show stat']:
+                        for i in range(self.fnum):
+                            print 'Doing', feature_names[i]
+                            print_mappings(self.feature_mappings[i])
+                            print_statistics(self.statistics[lindex:lindex + len(self.feature_mappings[i])])
+                            lindex += len(self.feature_mappings[i])
+                except:
+                    print 'Loading failed'
+                    loading_failed = True
+            if not config['load'] or loading_failed:
                 data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
                 feature_set = np.zeros(shape=(len(data_raw), self.fnum))
                 print 'Loading data'
@@ -117,12 +124,13 @@ class PacketFeaturer:
                         _, feature_index = self.get_feature_vector(i, item)
                         statistics_arrays[feature_index].append(item)
                     statistics_vector = [(np.mean(item), np.std(item)) for item in statistics_arrays]
-                    print_mappings(self.feature_mappings[i])
-                    print_statistics(statistics_vector)
+                    if config['show stat']:
+                        print_mappings(self.feature_mappings[i])
+                        print_statistics(statistics_vector)
                     self.statistics += statistics_vector
                 if config['save']:
                     with open(config['filename'], 'w') as f:
-                        pickle.dump([self.feature_mappings, self.statistics], f)
+                        pickle.dump([self.feature_mappings, self.statistics, config['split step']], f)
             self.dim = len(self.get_packet_features(fake_request))
         else:
             self.dim = 0
@@ -132,27 +140,22 @@ class PacketFeaturer:
     def reset(self):
         self.logical_time = self.preserved_logical_time
         self.real_time = self.preserved_real_time
-        self.was_seen = self.preserved_was_seen
 
     def full_reset(self):
         self.logical_time = 0
         self.real_time = 0
-        self.was_seen = []
         self.preserve()
 
     def preserve(self):
         self.preserved_logical_time = self.logical_time
         self.preserved_real_time = self.real_time
-        self.preserved_was_seen = self.was_seen
 
     def update_packet_state(self, packet):
         self.logical_time += 1
         self.real_time = packet['timestamp']
 
     def update_packet_info(self, packet):
-        self.was_seen.append(packet['id'])
-        if len(self.was_seen) > 650:
-            self.was_seen = self.was_seen[1:]
+        pass
 
     def observation_flag(self, packet):
         return 1 if packet['frequency'] != 1 else 0
@@ -161,7 +164,7 @@ class PacketFeaturer:
         feature_vector = [float(packet['frequency']) / (float(packet['size'])),
                           packet['timestamp'],
                           self.observation_flag(packet),
-                          float(packet['frequency']) * (float(packet['size'])),
+                          float(packet['frequency']) * (float(packet['size']) / (1 + self.logical_time)),
                           float(packet['frequency']) / (1 + self.logical_time)]
 
         return np.asarray(feature_vector)
@@ -171,18 +174,16 @@ class PacketFeaturer:
 
         feature_vector.append(np.log(1 + float(packet['size'])))
 
-        feature_vector.append(-np.log(1e-10 + float(packet['frequency']) / (1 + self.logical_time)))
+        feature_vector.append(-np.log(1e-4 + float(packet['frequency']) / (1 + self.logical_time)))
 
-        feature_vector.append(np.log(float(packet['frequency'])) - np.log(float(packet['size'])))
+        feature_vector.append(feature_vector[1] - feature_vector[0])
+
+        feature_vector.append(feature_vector[1] + feature_vector[0])
 
         feature_vector.append(np.log(2 + float(self.real_time - packet['lasp_app'])))
         feature_vector.append(np.log(2 + float(self.logical_time - packet['log_time'])))
         feature_vector.append(np.log(2 + float(packet['exp_recency'])))
         feature_vector.append(np.log(2 + float(packet['exp_log'])))
-        #was_seen = -1.
-        #if packet['id'] in self.was_seen:
-        #    was_seen = 1.
-        #feature_vector.append(was_seen)
 
         features = np.asarray(feature_vector)
         return features
