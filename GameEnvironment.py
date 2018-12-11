@@ -116,6 +116,10 @@ class GameEnvironment:
         drop = self.config['training']['drop']
         samples = self.config['training']['samples']
         alpha = self.config['training']['session configuration']['alpha']
+        classes_names = self.config['training']['algorithms']
+
+        step = period - self.config['training']['overlap']
+        overlap = self.config['training']['overlap']
 
         s_actions_evc = np.diag(np.ones((self.last_dim,)))
         s_actions_adm = np.diag(np.ones((2,)))
@@ -123,13 +127,16 @@ class GameEnvironment:
         requests_max += warmup_period
 
         refresh_value = self.config['training']['refresh value']
+        iteration = 0
+        warming_to_required_state = False
+        additional_warming = -1
+        empty_loops = 0
 
-        for iteration in range(runs):
+        while iteration < runs:
             counter = 0
             current_rows = []
             memory_vector = None
 
-            classes_names = self.config['training']['algorithms']
             classes_names.append(self.config['training']['target'] + '-DET')
             classes_names.append(self.config['training']['target'] + '-RNG')
             special_keys = [self.config['training']['target'] + '-DET', self.config['training']['target'] + '-RNG']
@@ -188,24 +195,24 @@ class GameEnvironment:
             train_admission = train_admission and self.config['training']['IP:train admission']
             train_eviction = train_eviction and self.config['training']['IP:train eviction']
 
-            step = period - self.config['training']['overlap']
-            overlap = self.config['training']['overlap']
-
             ml_features = None
             classical_features = None
 
             addition_history = []
 
             for row in iterate_dataset(self.filenames):
-                if counter > requests_max:
+                if counter >= requests_max:
+                    iteration += 1
                     break
-                counter += 1
 
                 current_rows.append(row)
 
                 if (skip_required and len(current_rows) != warmup_period) or \
-                        (not skip_required and len(current_rows) != period):
+                        (not skip_required and not warming_to_required_state and len(current_rows) != period) or \
+                        (not skip_required and warming_to_required_state and len(current_rows) != step):
                     continue
+
+                counter += len(current_rows)
 
                 if ml_features is None:
                     ml_features, memory_vector = gen_feature_set(current_rows, self.featurer, forget_lambda,
@@ -243,21 +250,32 @@ class GameEnvironment:
 
                 print 'Size arrived {:^15s} Time passed'.format(fsize(traffic_arrived)), time_diff
 
-                if skip_required:
-                    print 'Warming up', warmup_period
+                if skip_required or warming_to_required_state:
+                    if skip_required:
+                        print 'Warming up', warmup_period
+                    else:
+                        print 'Skipping', step, 'left', (additional_warming - empty_loops) * step
 
                     test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows, alpha,
                                     base_iteration=base_iteration, special_keys=special_keys)
 
-                    for key in algorithms.keys():
-                        algorithms[key].reset()
+                    if not skip_required and warming_to_required_state:
+                        if empty_loops == additional_warming:
+                            warming_to_required_state = False
+                        else:
+                            empty_loops += 1
 
-                    current_rows = []
                     ml_features = None
                     classical_features = None
-                    base_iteration += warmup_period
+                    base_iteration += len(current_rows)
 
-                    skip_required = False
+                    current_rows = []
+
+                    if skip_required:
+                        skip_required = False
+                    if not skip_required and not warming_to_required_state:
+                        for key in algorithms.keys():
+                            algorithms[key].reset()
                     continue
 
                 algorithms_copy = {}
@@ -281,6 +299,8 @@ class GameEnvironment:
                 for repetition in range(repetitions):
                     local_train_eviction, local_train_admission = bool_array[repetition]
 
+                    print 'Repetition', repetition
+
                     if drop:
                         states_adm, actions_adm, rewards_adm = [], [], []
                         states_evc, actions_evc, rewards_evc = [], [], []
@@ -291,15 +311,18 @@ class GameEnvironment:
                             if repetition - addition_history[i] >= self.config['training']['store period']:
                                 indicies_to_remove.append(i)
                         for index in indicies_to_remove:
-                            if local_train_eviction:
-                                del states_evc[index]
-                                del actions_evc[index]
-                                del rewards_evc[index]
-                            if local_train_admission:
-                                del states_adm[index]
-                                del actions_adm[index]
-                                del rewards_adm[index]
-                            del addition_history[index]
+                            try:
+                                if local_train_eviction:
+                                    del states_evc[index]
+                                    del actions_evc[index]
+                                    del rewards_evc[index]
+                                if local_train_admission:
+                                    del states_adm[index]
+                                    del actions_adm[index]
+                                    del rewards_adm[index]
+                                del addition_history[index]
+                            except IndexError:
+                                continue
 
                     sessions = []
                     admission_skipped = not local_train_admission
@@ -413,4 +436,7 @@ class GameEnvironment:
                 del actions_evc
                 del actions_adm
 
-                current_rows = current_rows[step:]
+                additional_warming += 1
+                warming_to_required_state = True
+                empty_loops = 0
+                break

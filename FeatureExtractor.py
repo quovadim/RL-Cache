@@ -44,19 +44,19 @@ def collect_features(output_filename, t_max, filenames):
 
 def print_mappings(mappings):
     mappings_flat = [item[0] for item in mappings] + [mappings[len(mappings) - 1][1]]
-    pdata = ['{:^20.5f}'] * len(mappings_flat)
-    pstr = ' '.join(pdata)
+    pdata = ['A: {:5.3f}'] * len(mappings_flat[:min(10, len(mappings_flat))])
+    pstr = ' | '.join(pdata)
     print pstr.format(*mappings_flat)
 
 
 def print_statistics(statistics):
     stat_vector = []
     p_vector = []
-    for mean, std in statistics:
+    for mean, std in statistics[:min(10, len(statistics))]:
         stat_vector.append(mean)
         stat_vector.append(std)
-        p_vector.append('M:{:^20.5f} V:{:^20.5f}')
-    print ' '.join(p_vector).format(*stat_vector)
+        p_vector.append('M: {:5.3f} V: {:5.3f}')
+    print ' | '.join(p_vector).format(*stat_vector)
 
 
 class PacketFeaturer:
@@ -76,30 +76,37 @@ class PacketFeaturer:
         self.preserved_real_time = 0
         self.preserved_was_seen = []
 
+        feature_names = ['size',
+                         'frequency',
+                         'gdsf',
+                         'time recency',
+                         'request recency',
+                         'exponential time recency',
+                         'exponential request recency']
+
         if config is not None:
+            self.normalization_limit = config['normalization limit']
+            self.bias = config['bias']
+            print 'Bias', self.bias, 'Normalization', self.normalization_limit
             if config['load']:
                 with open(config['filename'], 'r') as f:
                     data = pickle.load(f)
                     self.feature_mappings = data[0]
                     self.statistics = data[1]
+                lindex = 0
+                for i in range(self.fnum):
+                    print 'Doing', feature_names[i]
+                    print_mappings(self.feature_mappings[i])
+                    print_statistics(self.statistics[lindex:lindex + len(self.feature_mappings[i])])
+                    lindex += len(self.feature_mappings[i])
             else:
                 data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
                 feature_set = np.zeros(shape=(len(data_raw), self.fnum))
-                self.normalization_limit = config['normalization limit']
-                self.bias = config['bias']
-                print 'Bias', self.bias, 'Normalization', self.normalization_limit
                 print 'Loading data'
                 for i in tqdm(range(feature_set.shape[0])):
                     feature_set[i] = np.array([float(item) for item in data_raw[i].split(' ')[:self.fnum]])
 
                 self.feature_mappings = []
-                feature_names = ['size',
-                                 'frequency',
-                                 'gdsf',
-                                 'time recency',
-                                 'request recency',
-                                 'exponential time recency',
-                                 'exponential request recency']
                 for i in range(self.fnum):
                     print 'Doing', feature_names[i]
                     self.feature_mappings.append(split_feature(feature_set[:, i], config['split step']))
@@ -114,7 +121,7 @@ class PacketFeaturer:
                     print_statistics(statistics_vector)
                     self.statistics += statistics_vector
                 if config['save']:
-                    with open(config['filename', 'w']) as f:
+                    with open(config['filename'], 'w') as f:
                         pickle.dump([self.feature_mappings, self.statistics], f)
             self.dim = len(self.get_packet_features(fake_request))
         else:
