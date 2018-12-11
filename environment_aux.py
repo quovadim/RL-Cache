@@ -233,10 +233,10 @@ def train_model(percentile,
     elite_states = []
     elite_actions = []
     percentile_est = 0
-    while not elite_states:
+    while len(elite_states) == 0:
         elite_states, elite_actions, percentile_est = select_elites(states, actions, rewards,
                                                                     percentile_value, max_samples)
-        if not elite_states:
+        if len(elite_states) == 0:
             if percentile_value is None:
                 percentile_value = 100
             if percentile_value <= 50:
