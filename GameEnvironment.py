@@ -150,6 +150,15 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
     if config['iterative']:
         runs *= 2
 
+    if common_model is not None:
+        common_model.summary()
+
+    class_type, rng_adm, _, rng_evc, _, rng_type = name_to_class(config['target'])
+    if rng_adm:
+        model_admission.summary()
+    if rng_evc:
+        model_eviction.summary()
+
     for iteration in range(runs):
         current_rows = []
 
@@ -196,11 +205,18 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
         if config['iterative']:
             assert not eviction_classical and not admission_classical
-            eviction_turn = 1
+            eviction_turn = None
             if config['start iteration'] == 'E':
                 eviction_turn = 0
+            if config['start iteration'] == 'A':
+                eviction_turn = 1
+            assert eviction_turn is not None
             train_admission = iteration % 2 != eviction_turn
             train_eviction = iteration % 2 == eviction_turn
+            if common_model is not None:
+                common_model.trainable = iteration % 2 == 0
+                model_admission = compile_model(model_admission, config_model, 'A')
+                model_eviction = compile_model(model_eviction, config_model, 'E')
         else:
             train_admission = not admission_classical
             train_eviction = not eviction_classical
@@ -216,8 +232,6 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
         ml_features = None
         classical_features = None
-
-        addition_history = []
 
         steps_before_skip = config['refresh period']
 
@@ -238,11 +252,9 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 ml_features = featurer.gen_feature_set(current_rows, classical=False)
                 classical_features = featurer.gen_feature_set(current_rows, classical=True)
             else:
-                extended_ml_features = featurer.gen_feature_set(current_rows[overlap: period], classical=False)
-                extended_classical_features = featurer.gen_feature_set(current_rows[period - step: period],
-                                                                           classical=True)
-                ml_features = ml_features[step:]
-                classical_features = classical_features[step:]
+                extended_ml_features = featurer.gen_feature_set(current_rows[len(current_rows) - step:], classical=False)
+                extended_classical_features = featurer.gen_feature_set(current_rows[len(current_rows) - step:],
+                                                                       classical=True)
                 ml_features = np.concatenate([ml_features, extended_ml_features], axis=0)
                 classical_features = np.concatenate([classical_features, extended_classical_features], axis=0)
 
@@ -259,8 +271,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 batch_size
             )
 
-            traffic_arrived = sum([item['size'] for item in current_rows])
-            time_diff = current_rows[len(current_rows) - 1]['timestamp'] - current_rows[0]['timestamp']
+            traffic_arrived = sum([item['size'] for item in current_rows[:step]])
+            time_diff = current_rows[min(step, len(current_rows) - 1)]['timestamp'] - current_rows[0]['timestamp']
             time_diff = to_ts(time_diff)
 
             print 'Size arrived \033[1m{:^15s}\033[0m Time passed\033[1m'.format(fsize(traffic_arrived)), \
@@ -438,6 +450,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
             del actions_adm
 
             current_rows = current_rows[step:]
+            ml_features = ml_features[step:]
+            classical_features = classical_features[step:]
 
             base_iteration += step
 

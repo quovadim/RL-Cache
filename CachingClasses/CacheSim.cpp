@@ -114,7 +114,6 @@ bool CacheSim::decide(p::dict request, double eviction_rating, bool admission_de
 	byte_misses += size;
 
 	prediction_updated_admission = true;
-	prediction_updated_eviction = true;
 
 	produce_new_cache_state(request, eviction_rating, admission_decision);
 

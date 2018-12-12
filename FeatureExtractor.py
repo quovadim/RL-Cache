@@ -8,8 +8,11 @@ feature_names = ['log size',
                  'log frequency',
                  'gdsf',
                  'frequency',
-                 'log gdsf',
-                 'log bhr',
+                 'size',
+                 'recency',
+                 'exponential recency',
+                 #'log gdsf',
+                 #'log bhr',
                  'log time recency',
                  'log request recency',
                  'log exp time recency',
@@ -268,9 +271,14 @@ class PacketFeaturer:
 
         feature_vector.append(float(packet['frequency']) / (1 + self.logical_time))
 
-        feature_vector.append(-1 * feature_vector[1] - feature_vector[0])
+        feature_vector.append(float(packet['size']))
 
-        feature_vector.append(-1 * feature_vector[1] + feature_vector[0])
+        feature_vector.append(self.real_time - packet['lasp_app'])
+        feature_vector.append(float(packet['exp_recency']))
+
+        #feature_vector.append(feature_vector[1] - feature_vector[0])
+
+        #feature_vector.append(feature_vector[1] + feature_vector[0])
 
         feature_vector.append(np.log(2 + float(self.real_time - packet['lasp_app'])))
         feature_vector.append(np.log(2 + float(self.logical_time - packet['log_time'])))
@@ -302,7 +310,7 @@ class PacketFeaturer:
 
         assert False
 
-    def get_packet_features_from_pure(self, pure_features, return_statistics=False):
+    def get_packet_features_from_pure(self, pure_features):
         result = []
         statistics = []
         for i in range(self.fnum):
@@ -311,10 +319,7 @@ class PacketFeaturer:
             stat_vector[index] = 1
             statistics += stat_vector
             result += feature_vector
-        result_features = np.asarray(result)
-        if return_statistics:
-            return result_features, statistics
-        return result_features
+        return self.apply_statistics(result, statistics)
 
     def apply_statistics(self, result_features, statistics):
         result = [0] * len(result_features)
@@ -326,5 +331,4 @@ class PacketFeaturer:
 
     def get_packet_features(self, packet):
         feature_vector = self.get_packet_features_pure(packet)
-        corrected_features, statistics = self.get_packet_features_from_pure(feature_vector, return_statistics=True)
-        return self.apply_statistics(corrected_features, statistics)
+        return self.get_packet_features_from_pure(feature_vector)

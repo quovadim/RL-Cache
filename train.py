@@ -12,10 +12,11 @@ parser.add_argument('-t', '--threads', type=int, default=10, help="Number of thr
 parser.add_argument('-c', '--cpu', action='store_true', help="Use CPU for computations")
 parser.add_argument('-e', '--preload_eviction', action='store_true', help="Load pretrained eviction")
 parser.add_argument('-a', '--preload_admission', action='store_true', help="Load pretrained admission")
+parser.add_argument('-v', '--verbose', action='store_true', help="Verbose sanity check")
 
 args = parser.parse_args()
 
-configuration = check_train_config(args.config, verbose=False)
+configuration = check_train_config(args.config, verbose=args.verbose)
 if configuration is None:
     exit(0)
 

@@ -11,6 +11,8 @@ void LRUSimulator::produce_new_cache_state(p::dict &request, double eviction_rat
         return;
 	}
 
+	prediction_updated_eviction = true;
+
 	while (used_space + size > cache_size) {
 	    auto min_elem = ratings.begin();
 

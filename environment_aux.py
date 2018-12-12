@@ -262,7 +262,7 @@ def train_model(percentile,
     print label, rstr_random
 
     v = model.fit(features_embedding[elite_states], answers_embedding[elite_actions],
-                  epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
+                  epochs=epochs, batch_size=batch_size, shuffle=True, verbose=1)
 
     print 'Samples: {:6d} APS: {:^10d} Accuracy: \033[1m{:7.4f}%\033[0m Loss: {:7.5f} ' \
           'Mean: {:7.4f}% Median: {:7.4f}% Percentile: \033[1m{:7.4f}%\033[0m Max: {:7.4f}%'.format(
@@ -454,7 +454,6 @@ def generate_session_continious(
                 and algorithm.prediction_updated_admission:
             lstates_adm.append(i)
             lactions_adm.append(adm_decision_values[i])
-
 
     eviction_rating = reward_hits / reward_total
     admission_rating = reward_hits / reward_total

@@ -19,6 +19,8 @@ void MLSimulator::produce_new_cache_state(p::dict &request, double eviction_rati
         return;
 	}
 
+	prediction_updated_eviction = true;
+
 	while (used_space + size > cache_size) {
 	    auto min_elem = ratings.begin();
 	    //L += pow(2.0, -1 * double(wing_size)) / 2.;
