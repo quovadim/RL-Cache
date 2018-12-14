@@ -1,6 +1,5 @@
 from hurry.filesize import size as fsize
 from FeatureExtractor import PacketFeaturer
-from config_sanity import check_statistics_config, check_model_config
 
 from environment_aux import *
 from model import *
@@ -10,89 +9,89 @@ import tensorflow as tf
 from tqdm import tqdm
 
 
-class GameEnvironment:
-    def __init__(self, config):
-        self.config = config
+def test(config, o_file_generator):
+    current_rows = []
+    file_counter = 0
 
-        self.featurer = PacketFeaturer(load_json(self.config['training']['statistics']))
+    filenames = collect_filenames(config['data folder'])
 
-        self.wing_size = self.config['model']["wing size"]
-        self.last_dim = self.wing_size * 2 + 1
+    featurers = config['featurers']
+    admission_models = config['admission']
+    eviction_models = config['eviction']
+    models = config['models']
+    statistics = config['statistics']
 
-        self.common_model = create_common_model(self.config['model'], self.featurer.dim)
-        self.model_admission = create_admission_model(self.config['model'], self.featurer.dim, self.common_model)
-        self.model_eviction = create_eviction_model(self.config['model'], self.featurer.dim, self.common_model)
+    cache_size = config['cache size'] * 1024 * 1024
 
-    def test(self, o_file_generator):
-        counter = 0
-        current_rows = []
-        file_counter = 0
+    classes_names = config['algorithms'].keys()
 
-        config = self.config['testing']
+    algorithms = {}
 
-        filenames = collect_filenames(config['data folder'])
+    counter = 0
 
-        featurer = PacketFeaturer(self.config['statistics'])
+    for class_name in classes_names:
+        class_type, rng_adm, _, rng_evc, _, _ = name_to_class(class_name)
+        algorithms[class_name] = class_type(cache_size)
 
-        cache_size = config['cache size']
+    start_time = None
 
-        classes_names = config['algorithms']
+    warmup_length = config['warmup']
+    needs_warmup = True
 
-        algorithms_data = {}
-        algorithms = {}
+    for row in iterate_dataset(filenames):
 
-        for class_name in classes_names:
-            class_type, rng_adm, _, rng_evc, _, _ = name_to_class(class_name)
-            algorithms_data[class_name] = name_to_class(class_name)
-            algorithms[class_name] = class_type(cache_size)
+        current_rows.append(row)
 
-        start_time = None
+        if start_time is None:
+            start_time = row['timestamp']
 
-        for row in iterate_dataset(filenames):
-            if counter > config['requests max']:
-                break
+        if len(current_rows) % 1000 == 0:
+            sys.stdout.write('\rCollected: ' + str(counter + len(current_rows)))
+            sys.stdout.flush()
 
-            current_rows.append(row)
+        if (needs_warmup and len(current_rows) == warmup_length) \
+                or (not needs_warmup and row['timestamp'] - start_time > config['period']):
+            start_time = row['timestamp']
 
-            if start_time is None:
-                start_time = row['timestamp']
+            feature_sets = []
 
-            if counter != 0 and row['timestamp'] - start_time > config['period']:
-                start_time = row['timestamp']
-                print ''
+            print '\rCollected: ' + str(counter + len(current_rows))
 
-                classical_features = featurer.gen_feature_set(current_rows, classical=True)
+            for featurer in featurers:
+                feature_set = featurer.gen_feature_set(current_rows)
+                feature_sets.append(feature_set)
 
-                ml_features = featurer.gen_feature_set(current_rows, classical=False)
-
+            for featurer in featurers:
                 featurer.preserve()
 
-                decisions_adm, decisions_evc = generate_data_for_models(
-                    algorithms.keys(),
-                    algorithms_data,
-                    classical_features,
-                    ml_features,
-                    self.model_admission,
-                    self.model_eviction,
-                    config['batch size']
-                )
+            predictions_adm, decisions_adm, \
+            predictions_evc, decisions_evc, _ = generate_data_for_models(feature_sets,
+                                                                         statistics,
+                                                                         admission_models,
+                                                                         eviction_models,
+                                                                         models,
+                                                                         config['batch size'])
 
-                if config['reset']:
-                    for alg in algorithms.keys():
-                        algorithms[alg].reset()
+            if config['reset']:
+                for alg in algorithms.keys():
+                    algorithms[alg].reset()
 
-                test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows,
-                                config['alpha'],
-                                output_file=o_file_generator + '_' + str(file_counter),
-                                base_iteration=counter)
+            log_file = o_file_generator + '_' + str(file_counter)
+            if needs_warmup:
+                log_file = None
+
+            test_algorithms(algorithms, predictions_adm, decisions_adm, predictions_evc, decisions_evc, current_rows,
+                            config['alpha'],
+                            output_file=log_file,
+                            base_iteration=counter)
+
+            if not needs_warmup:
                 file_counter += 1
+                counter += len(current_rows)
 
-                current_rows = []
+            current_rows = []
 
-            if counter % 100 == 0:
-                sys.stdout.write('\r' + 'Collector iteration {:7d}'.format(counter + 1))
-                sys.stdout.flush()
-            counter += 1
+            needs_warmup = False
 
 
 def train(config, admission_path, eviction_path, load_admission, load_eviction, n_threads=10):
@@ -249,19 +248,22 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 continue
 
             if ml_features is None:
-                ml_features = featurer.gen_feature_set(current_rows, classical=False)
-                classical_features = featurer.gen_feature_set(current_rows, classical=True)
+                featurer.classical = False
+                ml_features = featurer.gen_feature_set(current_rows)
+                featurer.classical = True
+                classical_features = featurer.gen_feature_set(current_rows)
             else:
-                extended_ml_features = featurer.gen_feature_set(current_rows[len(current_rows) - step:], classical=False)
-                extended_classical_features = featurer.gen_feature_set(current_rows[len(current_rows) - step:],
-                                                                       classical=True)
+                featurer.classical = False
+                extended_ml_features = featurer.gen_feature_set(current_rows[overlap:])
+                featurer.classical = True
+                extended_classical_features = featurer.gen_feature_set(current_rows[overlap:])
                 ml_features = np.concatenate([ml_features, extended_ml_features], axis=0)
                 classical_features = np.concatenate([classical_features, extended_classical_features], axis=0)
 
             featurer.preserve()
             print 'Logical time', featurer.logical_time
 
-            decisions_adm, decisions_evc = generate_data_for_models(
+            decisions_adm, decisions_evc = generate_data_for_models_light(
                 algorithms.keys(),
                 algorithms_data,
                 classical_features,
@@ -344,7 +346,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                     for i in range(len(addition_history)):
                         if (repetition - addition_history[i]) == config['store period']:
                             indicies_to_remove.append(i)
-                    assert repetition == 0 or len(indicies_to_remove) == samples
+                    #assert repetition == 0 or len(indicies_to_remove) == samples
                     for index in sorted(indicies_to_remove, reverse=True):
                         if local_train_eviction:
                             del states_evc[index]
@@ -376,7 +378,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
                 samples_to_generate = samples
                 if repetition == 0 and not drop:
-                    samples_to_generate = samples * config['store period']
+                    samples_to_generate = samples
                 for i in tqdm(range(0, samples_to_generate, n_threads)):
                     steps = min(n_threads, samples_to_generate - i)
                     threads = [None] * steps
@@ -404,9 +406,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                             results = [item for item in results if item[4] > dump_percentile]
                     if results:
                         sessions += results
-                        if repetition == 0 and not drop:
-                            addition_history += [1 + i // samples - config['store period']] * len(results)
-                        else:
+                        if not drop:
                             addition_history += [repetition] * len(results)
 
                 for se, ae, sa, aa, re, ra in sessions:
@@ -435,9 +435,12 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
                     model_eviction.save_weights(eviction_path)
 
-            decisions_adm, decisions_evc = generate_data_for_models(algorithms.keys(), algorithms_data,
-                                                                    classical_features, ml_features, model_admission,
-                                                                    model_eviction, batch_size)
+            decisions_adm, decisions_evc = generate_data_for_models_light(algorithms.keys(), algorithms_data,
+                                                                          classical_features,
+                                                                          ml_features,
+                                                                          model_admission,
+                                                                          model_eviction,
+                                                                          batch_size)
 
             test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
                             base_iteration=base_iteration, special_keys=special_keys)

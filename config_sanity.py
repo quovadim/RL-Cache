@@ -1,5 +1,12 @@
 from environment_aux import load_json, name_to_class
+from FeatureExtractor import PacketFeaturer
+from model import *
 import os.path
+from copy import deepcopy
+
+import keras as K
+
+import gc
 
 error_levels = {
     0: '\033[1m\033[91mCRITICAL\033[0m',
@@ -177,6 +184,96 @@ def check_algorithm(name, value, model, tabulation, level, verbose, dead):
             return True, value, check_model_config(model, tabulation, verbose)
 
 
+def compare_statistics_dicts(d1, d2):
+    c1 = deepcopy(d1)
+    c2 = deepcopy(d2)
+    if 'load' not in c1.keys() or 'save' not in c1.keys() or 'show stat' not in c1.keys():
+        return False
+    if 'load' not in c2.keys() or 'save' not in c2.keys() or 'show stat' not in c2.keys():
+        return False
+    c1['load'] = c2['load']
+    c1['save'] = c2['save']
+    c1['show stat'] = c2['show stat']
+    return c1 == c2
+
+
+def load_caching_algorithms(algorithms, tabulation, verbose):
+    known_configs = [{}]
+    known_names = ['']
+    featurers = [PacketFeaturer(None, False)]
+
+    known_admission_models = [None]
+    known_eviction_models = [None]
+
+    known_admission_names = ['']
+    known_eviction_names = ['']
+
+    common_models_mapping = {}
+
+    models = {}
+    statistics = {}
+    for key in algorithms.keys():
+        model = algorithms[key]
+        if model is not None:
+            target_index = -1
+            model, adm_path, evc_path = model
+            model_config = check_model_config(model, tabulation=tabulation, verbose=verbose)
+            if model_config is None:
+                return None
+            if model_config['statistics'] in known_names:
+                target_index = known_names.index(model_config['statistics'])
+            else:
+                statistics_config = check_statistics_config(model_config['statistics'], verbose=False)
+                if statistics_config is None:
+                    return None
+                for i in range(len(known_configs)):
+                    if compare_statistics_dicts(statistics_config, known_configs[i]):
+                        target_index = i
+                        break
+                if target_index < 0:
+                    target_index = len(known_names)
+                    known_names.append(model_config['statistics'])
+                    known_configs.append(statistics_config)
+                    featurers.append(PacketFeaturer(statistics_config))
+
+            adm_model = 0
+            evc_model = 0
+            cm_model = None
+            input_dim = featurers[target_index].dim
+            if model_config['use common']:
+                cm_model = create_common_model(model_config, input_dim)
+            common_models_mapping[key] = cm_model
+            class_type, rng_adm, adm_index, rng_evc, evc_index, rng_model = name_to_class(key)
+            name_to_use = [class_type, rng_adm, adm_index, rng_evc, evc_index, adm_path, evc_path]
+            name_to_use = '|'.join([str(item) for item in name_to_use])
+            if rng_adm:
+                if name_to_use in known_admission_names:
+                    adm_model = known_admission_names.index(name_to_use)
+                else:
+                    adm_model = len(known_admission_models)
+                    model = create_admission_model(model_config, input_dim, cm_model)
+                    if adm_path is not None:
+                        model.load_weights(adm_path)
+                    known_admission_models.append(model)
+                    known_admission_names.append(name_to_use)
+            if rng_evc:
+                if name_to_use in known_eviction_names:
+                    evc_model = known_eviction_names.index(name_to_use)
+                else:
+                    evc_model = len(known_eviction_models)
+                    model = create_eviction_model(model_config, input_dim, cm_model)
+                    if evc_path is not None:
+                        model.load_weights(evc_path)
+                    known_eviction_models.append(model)
+                    known_eviction_names.append(name_to_use)
+            models[key] = (adm_model, evc_model)
+            statistics[key] = target_index
+        else:
+            statistics[key] = 0
+            models[key] = (0, 0)
+    return featurers, statistics, known_admission_models, known_eviction_models, models, common_models_mapping
+
+
 def check_statistics_config(filename, tabulation='', verbose=True):
     names = ["statistics",
              "warmup",
@@ -227,8 +324,8 @@ def check_statistics_config(filename, tabulation='', verbose=True):
     if not check_existance('source', filename, True, tabulation, 0, verbose, True):
         return None
 
-    if verbose:
-        tabulation = '\t' + tabulation
+    tabulation = tabulation + ' ' + filename
+
     try:
         config = load_json(filename)
         if verbose:
@@ -241,11 +338,12 @@ def check_statistics_config(filename, tabulation='', verbose=True):
     if config is None:
         return config
 
-    if not check_existance('statistics', config['statistics'], True, tabulation, 0, verbose, True):
-        return None
+    # No reason to check it, we can live without this statistics
+    #if not check_existance('statistics', config['statistics'], True, tabulation, 0, verbose, True):
+    #    return None
 
-    num_lines = sum(1 for _ in open(config['statistics'], 'r'))
-    intervals[names.index('warmup')] = (0, num_lines, None)
+    #num_lines = sum(1 for _ in open(config['statistics'], 'r'))
+    #intervals[names.index('warmup')] = (0, num_lines, None)
 
     config = check_ranges(config, names, necessity, intervals, verbose, tabulation, 0)
     if config is None:
@@ -317,8 +415,8 @@ def check_model_config(filename, tabulation='', verbose=True):
     if not check_existance('source', filename, True, tabulation, 0, verbose, True):
         return None
 
-    if verbose:
-        tabulation = '\t' + tabulation
+    tabulation = tabulation + ' ' + filename
+
     try:
         config = load_json(filename)
         if verbose:
@@ -391,6 +489,8 @@ def check_session_configuration(config, tabulation, verbose):
         False,
         True
     ]
+
+    tabulation = tabulation + ' ' + 'session'
 
     config = check_fiends(config, names, types, necessity, tabulation, verbose)
     if config is None:
@@ -571,8 +671,7 @@ def check_train_config(filename, tabulation='', verbose=True):
     if not check_existance('source', filename, True, tabulation, 0, verbose, True):
         return None
 
-    if verbose:
-        tabulation = '\t' + tabulation
+    tabulation = tabulation + ' ' + filename
     try:
         config = load_json(filename)
         if verbose:
@@ -666,5 +765,91 @@ def check_train_config(filename, tabulation='', verbose=True):
 
     if config["session configuration"] is None:
         return None
+
+    return config
+
+
+def check_test_config(filename, tabulation='', verbose=True):
+    names = [
+        "data folder",
+        "cache size",
+        "batch size",
+        "seed",
+        "period",
+        "algorithms",
+        "reset",
+        "alpha",
+        "warmup"
+    ]
+
+    intervals = [
+        None,
+        (1, None, (32, 102400)),
+        (1, None, (32, 40960)),
+        None,
+        (0, None, (600, 3600)),
+        None,
+        None,
+        None,
+        (0, None, (50000, None))
+    ]
+
+    types = [[str, unicode],
+             [int],
+             [int],
+             [int],
+             [int],
+             [dict],
+             [bool],
+             [int],
+             [int]]
+
+    necessity = [True,
+                 True,
+                 True,
+                 True,
+                 True,
+                 True,
+                 True,
+                 True,
+                 True,
+                 True]
+
+    if not check_existance('source', filename, True, tabulation, 0, verbose, True):
+        return None
+
+    tabulation = tabulation + ' ' + filename
+
+    try:
+        config = load_json(filename)
+        if verbose:
+            print tabulation, error_levels[3], 'File', filename, 'loaded'
+    except:
+        print tabulation, error_levels[0], "Error during loading", filename
+        return None
+
+    config = check_fiends(config, names, types, necessity, tabulation, verbose)
+    if config is None:
+        return config
+
+    if not check_existance('data folder', config['data folder'], True, tabulation, 0, verbose, True, directory=True):
+        return None
+
+    config = check_ranges(config, names, necessity, intervals, verbose, tabulation, 0)
+    if config is None:
+        return None
+
+    response = load_caching_algorithms(config['algorithms'], tabulation, verbose)
+    if response is None:
+        return None
+    else:
+        featurers, statistics, admission, eviction, models, common_models = response
+
+    config['featurers'] = featurers
+    config['statistics'] = statistics
+    config['admission'] = admission
+    config['eviction'] = eviction
+    config['models'] = models
+    config['common models'] = common_models
 
     return config

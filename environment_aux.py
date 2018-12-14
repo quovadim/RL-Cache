@@ -11,6 +11,7 @@ from os import listdir
 from os.path import isfile, join
 import sys
 import json
+from tqdm import tqdm
 
 
 def to_ts(time_diff):
@@ -54,6 +55,8 @@ def name_to_class(name):
     name_eviction = name[1]
     if len(name) > 2:
         name_rng = name[2]
+        if name_rng != 'RNG' and name_rng != 'DET':
+            name_rng = None
     else:
         name_rng = None
     admission_random = False
@@ -61,7 +64,7 @@ def name_to_class(name):
     class_type = None
     admission_index = -1
     eviction_index = -1
-    randomness_type = None
+    randomness_type = False
     if name_rng is not None:
         if name_rng == 'RNG':
             randomness_type = True
@@ -69,7 +72,7 @@ def name_to_class(name):
             randomness_type = False
     if name_admission == 'AL':
         admission_random = False
-        admission_index = -1
+        admission_index = 5
     if name_admission == 'SH':
         admission_random = False
         admission_index = 2
@@ -170,13 +173,125 @@ def select_elites(states, actions, rewards, percentile, max_samples):
     return elite_states, elite_actions, percentile_value, samples_used, mean_actions
 
 
-def generate_data_for_models(keys,
-                             keys_info,
-                             classical_feature_set,
-                             ml_feature_set,
-                             adm_model,
-                             evc_model,
+def generate_predictions(features, index, rng_mode, binarize):
+    if index < 0:
+        if not rng_mode:
+            predictions = np.argmax(features, axis=1)
+        else:
+            predictions = sampling(features)
+    else:
+        predictions = features[:, index]
+    if binarize:
+        predictions = [bool(item == 1) for item in predictions]
+    return predictions
+
+
+def generate_data_for_models(feature_sets,
+                             feature_sets_mapping,
+                             admission_models,
+                             eviction_models,
+                             models_mapping,
                              batch_size):
+    decisions_adm = {}
+    decisions_evc = {}
+
+    feature_source_mapping = {}
+
+    predictions_adm = []
+    predictions_evc = []
+    seen_admission = []
+
+    admission_models_predictions = []
+    eviction_models_predictions = []
+
+    nml_characteristics_seen_adm = []
+    nml_characteristics_seen_evc = []
+
+    seen_eviction = []
+    cdk = 0
+    for key in models_mapping.keys():
+        a, e = models_mapping[key]
+        class_type, rng_adm, adm_index, rng_evc, evc_index, eng_type = name_to_class(key)
+        adm_characteristics = str(a) + '|' + str(adm_index)
+        nml_characteristics = str(a)
+        if rng_adm:
+            adm_characteristics += '|ML'
+            nml_characteristics += '|ML'
+            if not eng_type:
+                adm_characteristics += '|AMAX'
+            else:
+                adm_characteristics += '|SAMPLE' + str(cdk)
+                cdk += 1
+        else:
+            adm_characteristics += '|CLASSIC'
+            nml_characteristics += '|CLASSIC'
+
+        if nml_characteristics not in nml_characteristics_seen_adm:
+            if rng_adm:
+                admission_models_predictions.append(admission_models[a].predict(
+                    feature_sets[feature_sets_mapping[key]],
+                    verbose=0,
+                    batch_size=batch_size))
+            else:
+                admission_models_predictions.append(feature_sets[feature_sets_mapping[key]])
+            nml_characteristics_seen_adm.append(nml_characteristics)
+
+        adm_data_index = nml_characteristics_seen_adm.index(nml_characteristics)
+        admission_data = admission_models_predictions[adm_data_index]
+        if adm_characteristics not in seen_admission:
+            seen_admission.append(adm_characteristics)
+            predictions = generate_predictions(admission_data,
+                                               adm_index,
+                                               eng_type,
+                                               True)
+            predictions_adm.append(predictions)
+        decisions_adm[key] = seen_admission.index(adm_characteristics)
+        evc_characteristics = str(e) + '|' + str(evc_index)
+        nml_characteristics = str(e)
+        if rng_evc:
+            evc_characteristics += '|ML'
+            nml_characteristics += '|ML'
+            if not eng_type:
+                evc_characteristics += '|AMAX'
+            else:
+                evc_characteristics += '|SAMPLE' + str(cdk)
+                cdk += 1
+        else:
+            evc_characteristics += '|CLASSIC'
+            nml_characteristics += '|CLASSIC'
+
+        if nml_characteristics not in nml_characteristics_seen_evc:
+            if rng_adm:
+                eviction_models_predictions.append(eviction_models[e].predict(
+                    feature_sets[feature_sets_mapping[key]],
+                    verbose=0,
+                    batch_size=batch_size))
+            else:
+                eviction_models_predictions.append(feature_sets[feature_sets_mapping[key]])
+            nml_characteristics_seen_evc.append(nml_characteristics)
+
+        evc_data_index = nml_characteristics_seen_evc.index(nml_characteristics)
+        eviction_data = eviction_models_predictions[evc_data_index]
+        if evc_characteristics not in seen_eviction:
+            seen_eviction.append(evc_characteristics)
+            predictions = generate_predictions(eviction_data,
+                                               evc_index,
+                                               eng_type,
+                                               False)
+            predictions_evc.append(predictions)
+        decisions_evc[key] = seen_eviction.index(evc_characteristics)
+        feature_source_mapping[key] = (adm_data_index, evc_data_index)
+
+    return predictions_adm, decisions_adm, predictions_evc, decisions_evc, feature_source_mapping
+
+
+def generate_data_for_models_light(keys,
+                                   keys_info,
+                                   classical_feature_set,
+                                   ml_feature_set,
+                                   adm_model,
+                                   evc_model,
+                                   batch_size):
     decisions_adm = {}
     decisions_evc = {}
     predictions_evc = None
@@ -219,18 +334,9 @@ def generate_data_for_models(keys,
     return decisions_adm, decisions_evc
 
 
-def train_model(percentile,
-                model,
-                rewards,
-                states,
-                actions,
-                predictions,
-                features_embedding,
-                answers_embedding,
-                epochs,
-                batch_size,
-                max_samples,
-                label):
+def train_model(percentile, model, rewards, states, actions,
+                predictions, features_embedding, answers_embedding, epochs,
+                batch_size, max_samples, label):
     if percentile is not None:
         percentile_value = np.percentile(rewards, percentile)
     else:
@@ -278,14 +384,14 @@ def train_model(percentile,
 
 def test_algorithms(algorithms,
                     predictions_adm,
+                    decisions_adm,
                     predictions_evc,
+                    decisions_evc,
                     rows,
                     alpha,
                     output_file=None,
                     base_iteration=0,
                     special_keys=[]):
-
-    counter = 0
 
     total_size = sum([row['size'] for row in rows])
     total_time = rows[len(rows) - 1]['timestamp'] - rows[0]['timestamp']
@@ -295,17 +401,19 @@ def test_algorithms(algorithms,
     for key in keys:
         history[key] = []
 
-    for row in rows:
+    for i in range(len(rows)):
         for alg in keys:
-            algorithms[alg].decide(row, predictions_evc[alg][counter], predictions_adm[alg][counter])
+            algorithms[alg].decide(rows[i],
+                                   predictions_evc[decisions_evc[alg]][i],
+                                   predictions_adm[decisions_adm[alg]][i])
 
-        if output_file is not None and (counter % 100 < 0 or counter == len(rows) - 1):
+        if output_file is not None and i == len(rows) - 1:
             history['flow'] = float(total_size) / (1e-4 + float(total_time))
-            history['time'].append(row['timestamp'])
+            history['time'].append(rows[i]['timestamp'])
             for key in keys:
                 history[key].append(metric(algorithms[key], alpha))
 
-        if counter % 100 == 0 or counter == len(rows) - 1:
+        if i % 100 == 0 or i == len(rows) - 1:
             names = keys
             values = [100 * metric(algorithms[alg], alpha) for alg in keys]
             best_performance = keys[values.index(max(values))]
@@ -324,13 +432,11 @@ def test_algorithms(algorithms,
             print_string = ' | '.join(print_list)
             print_string = 'Iteration \033[1m{:10d}\033[0m ' + print_string
             subst_vals = []
-            for i in range(len(names)):
-                subst_vals.append(names[i])
-                subst_vals.append(values[i])
-            sys.stdout.write('\r' + print_string.format(*([base_iteration + counter + 1] + subst_vals)))
+            for j in range(len(names)):
+                subst_vals.append(names[j])
+                subst_vals.append(values[j])
+            sys.stdout.write('\r' + print_string.format(*([base_iteration + i + 1] + subst_vals)))
             sys.stdout.flush()
-
-        counter += 1
 
     print ''
 
@@ -395,7 +501,6 @@ def generate_session_continious(
 
     ratings = algorithm.get_ratings()
 
-    change_length = len(rows)
     multiplier = 1.
 
     reward_hits = 0
@@ -404,9 +509,8 @@ def generate_session_continious(
     gamma = 1.
 
     if config['collect discounted']:
-        change_length = change_point
         multiplier = config['initial gamma']
-        gamma = (config['gamma'] / multiplier) ** (1.0 / (len(rows) - change_length))
+        gamma = (config['gamma'] / multiplier) ** (1.0 / (len(rows) - change_point))
 
     evc_decision_values, eviction_decisions, adm_decision_values, admission_decisions = \
         get_session_features((eviction_defined, eviction_deterministic),
@@ -429,7 +533,7 @@ def generate_session_continious(
         if exchanged:
             continue
 
-        if config['change'] and i == change_length - 1:
+        if config['change'] and i == change_point - 1:
             if config['change mode'] == 'deterministic':
                 eviction_deterministic = True
                 admission_deterministic = True

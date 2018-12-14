@@ -5,7 +5,7 @@
 
 	"cache size": 1024,
 
-	"target": "ML-GDSF",
+	"target": "ML-ML",
 
 	"batch size": 4096,
 
@@ -13,17 +13,17 @@
 
 	"session configuration":
 	{
-		"collect discounted": false,
-		"change": false,
-		"change mode": "deterministic",
+		"collect discounted": true,
+		"change": true,
+		"change mode": "random",
 		"seed": 45,
 		"initial gamma": 1.0,
 		"gamma": 0.01,
-		"alpha": 0
+		"alpha": 1
 	},
 
 	"samples": 105,
-	"max samples": 1,
+	"max samples": 50,
 
 	"percentile admission": 90,
 	"percentile eviction": 90,
@@ -32,19 +32,19 @@
 	"warmup": 200000,
 	"runs": 500,
 	"refresh period": 5,
-	"repetitions": 5,
+	"repetitions": 3,
 	"drop": false,
 	"store period": 3,
-	"overlap": 180000,
+	"overlap": 150000,
 	"period": 200000,
 
 	"refresh policy": "monotonic",
 	"refresh value": 50,
 
-	"algorithms": ["AL-LRU", "SH-LRU", "AL-GDSF", "SH-GDSF"],
-	"models": [null, null, null, null],
+	"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "SH-GDSF", "SH-LRU", "SH-Oracle"],
+	"models": [null, null, null, null, null, null],
 
-	"iterative": false,
+	"iterative": true,
 	"start iteration": "E",
 
 	"IP:train admission": true,

@@ -12,7 +12,7 @@ from tqdm import tqdm
 parser = argparse.ArgumentParser(description='Algorithm tester')
 parser.add_argument("filepath", type=str, help="Output filename")
 parser.add_argument("-f", "--filename", type=str, default='', help="Output filename")
-parser.add_argument('-s', '--skip', type=int, default=100000, help="Skip")
+parser.add_argument('-s', '--skip', type=int, default=0, help="Skip")
 
 args = parser.parse_args()
 
@@ -58,6 +58,8 @@ flow_data = [item / (1024 * 1024 * 1024) for item in flow_data]
 #print ah
 #exit(0)
 time_data = time_data[args.skip:]
+
+print len(time_data)
 
 tgd = {}
 for key in graph_data.keys():

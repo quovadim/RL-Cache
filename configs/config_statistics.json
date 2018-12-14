@@ -1,10 +1,10 @@
 {
   "statistics": "auxiliary/features_primary.npy",
-  "warmup": 100000,
-  "split step": 1,
+  "warmup": 1000000,
+  "split step": 10,
 
-  "normalization limit": 6,
-  "bias": 2,
+  "normalization limit": 3,
+  "bias": 1,
 
   "save": true,
   "load": true,
@@ -12,5 +12,5 @@
 
   "show stat": false,
 
-  "lambda": 0.95
+  "lambda": 0.99995394935
 }
