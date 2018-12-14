@@ -1,5 +1,5 @@
 {
-	"data folder": "data/china_featured",
+	"data folder": "data/american_featured",
 
 	"batch size": 4096,
 
@@ -8,12 +8,8 @@
 	"seed": 127,
 
 	"algorithms": {
-		"AL-GDSF" : null,
-		"AL-LRU": null,
-		"AL-Oracle": null,
+		"AL-GDSF": null,
 		"SH-GDSF": null,
-		"SH-LRU": null,
-		"SH-Oracle": null,
 		"ML-GDSF-RNG": ["configs/config_model.json", "models/adm_M4", null],
 		"ML-GDSF-DET": ["configs/config_model.json", "models/adm_M4", null]
 	},

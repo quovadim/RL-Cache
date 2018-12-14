@@ -444,6 +444,68 @@ def test_algorithms(algorithms,
         pickle.dump(history, open(output_file, 'w'))
 
 
+def test_algorithms_light(algorithms,
+                          predictions_adm,
+                          predictions_evc,
+                          rows,
+                          alpha,
+                          output_file=None,
+                          base_iteration=0,
+                          special_keys=[]):
+
+    counter = 0
+
+    total_size = sum([row['size'] for row in rows])
+    total_time = rows[len(rows) - 1]['timestamp'] - rows[0]['timestamp']
+
+    history = {'time': [], 'flow': 0}
+    keys = sorted(algorithms.keys())
+    for key in keys:
+        history[key] = []
+
+    for row in rows:
+        for alg in keys:
+            algorithms[alg].decide(row, predictions_evc[alg][counter], predictions_adm[alg][counter])
+
+        if output_file is not None and (counter % 100 < 0 or counter == len(rows) - 1):
+            history['flow'] = float(total_size) / (1e-4 + float(total_time))
+            history['time'].append(row['timestamp'])
+            for key in keys:
+                history[key].append(metric(algorithms[key], alpha))
+
+        if counter % 100 == 0 or counter == len(rows) - 1:
+            names = keys
+            values = [100 * metric(algorithms[alg], alpha) for alg in keys]
+            best_performance = keys[values.index(max(values))]
+            print_list = []
+            for name in names:
+                if name in special_keys:
+                    if name == best_performance:
+                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+                    else:
+                        print_list.append('\033[92m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+                else:
+                    if name == best_performance:
+                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+                    else:
+                        print_list.append('{:^' + str(len(name)) + 's} \033[1m{:5.2f}%\033[0m')
+            print_string = ' | '.join(print_list)
+            print_string = 'Iteration \033[1m{:10d}\033[0m ' + print_string
+            subst_vals = []
+            for i in range(len(names)):
+                subst_vals.append(names[i])
+                subst_vals.append(values[i])
+            sys.stdout.write('\r' + print_string.format(*([base_iteration + counter + 1] + subst_vals)))
+            sys.stdout.flush()
+
+        counter += 1
+
+    print ''
+
+    if output_file is not None:
+        pickle.dump(history, open(output_file, 'w'))
+
+
 def get_session_features(bool_eviction, bool_admission, predictions_evc, predictions_adm):
     eviction_defined, eviction_deterministic = bool_eviction
     admission_defined, admission_deterministic = bool_admission

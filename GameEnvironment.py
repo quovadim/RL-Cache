@@ -286,8 +286,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 else:
                     print 'Skipping', step, 'left', (additional_warming - empty_loops) * step * config['refresh period']
 
-                test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows, alpha,
-                                base_iteration=base_iteration, special_keys=special_keys)
+                test_algorithms_light(algorithms, decisions_adm, decisions_evc, current_rows, alpha,
+                                      base_iteration=base_iteration, special_keys=special_keys)
 
                 if warming_to_required_state:
                     if empty_loops == additional_warming:
@@ -322,8 +322,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 algorithms_copy[key] = copy_object(algorithms[key])
                 algorithms_copy_states[key] = algorithms_copy[key].get_ratings()
 
-            test_algorithms(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                            base_iteration=base_iteration, special_keys=special_keys)
+            test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
+                                  base_iteration=base_iteration, special_keys=special_keys)
 
             for key in algorithms_copy_states.keys():
                 assert algorithms_copy_states[key] == algorithms[key].get_ratings()
@@ -442,8 +442,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                                                                           model_eviction,
                                                                           batch_size)
 
-            test_algorithms(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                            base_iteration=base_iteration, special_keys=special_keys)
+            test_algorithms_light(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
+                                  base_iteration=base_iteration, special_keys=special_keys)
 
             del states_evc
             del states_adm
