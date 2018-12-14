@@ -287,7 +287,7 @@ class PacketFeaturer:
 
     def get_static_features(self, packet):
         feature_vector = [float(packet['frequency']) / (float(packet['size'])),
-                          packet['timestamp'],
+                          self.logical_time,
                           packet['frequency'] != 1,
                           float(packet['frequency']) * (float(packet['size']) / (1 + self.logical_time)),
                           float(packet['frequency']) / (1 + self.logical_time),

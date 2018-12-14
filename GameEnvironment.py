@@ -46,7 +46,7 @@ def test(config, o_file_generator):
             start_time = row['timestamp']
 
         if len(current_rows) % 1000 == 0:
-            sys.stdout.write('\rCollected: ' + str(counter + len(current_rows)))
+            sys.stdout.write('\rCollected: ' + str(len(current_rows)))
             sys.stdout.flush()
 
         if (needs_warmup and len(current_rows) == warmup_length) \
@@ -55,7 +55,11 @@ def test(config, o_file_generator):
 
             feature_sets = []
 
-            print '\rCollected: ' + str(counter + len(current_rows))
+            print '\rCollected: ' + str(len(current_rows))
+
+            if config['reset']:
+                for alg in algorithms.keys():
+                    algorithms[alg].reset()
 
             for featurer in featurers:
                 feature_set = featurer.gen_feature_set(current_rows)
@@ -71,10 +75,6 @@ def test(config, o_file_generator):
                                                                          eviction_models,
                                                                          models,
                                                                          config['batch size'])
-
-            if config['reset']:
-                for alg in algorithms.keys():
-                    algorithms[alg].reset()
 
             log_file = o_file_generator + '_' + str(file_counter)
             if needs_warmup:
@@ -111,10 +111,10 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
     model_admission, model_eviction, common_model, last_dim = create_models(config_model, featurer.dim)
 
     if load_eviction:
-        print 'Loading pretrained from', load_eviction
+        print 'Loading pretrained from', eviction_path
         model_eviction.load_weights(eviction_path)
     if load_admission:
-        print 'Loading pretrained from', load_admission
+        print 'Loading pretrained from', admission_path
         model_admission.load_weights(admission_path)
 
     filenames = collect_filenames(config['data folder'])
@@ -308,8 +308,9 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                     algorithms[key].reset()
                 continue
 
-            print 'Step\033[1m', 1 + config['refresh period'] - steps_before_skip, \
-                '\033[0mout of\033[1m', config['refresh period'], '\033[0m'
+            if config['refresh period'] > 1:
+                print 'Step\033[1m', 1 + config['refresh period'] - steps_before_skip, \
+                    '\033[0mout of\033[1m', config['refresh period'], '\033[0m'
 
             steps_before_skip -= 1
 
@@ -317,16 +318,17 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 algorithms[key].reset()
 
             algorithms_copy = {}
-            algorithms_copy_states = {}
+
             for key in algorithms.keys():
                 algorithms_copy[key] = copy_object(algorithms[key])
-                algorithms_copy_states[key] = algorithms_copy[key].get_ratings()
+                algorithms_copy[key].reset()
 
             test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
                                   base_iteration=base_iteration, special_keys=special_keys)
 
-            for key in algorithms_copy_states.keys():
-                assert algorithms_copy_states[key] == algorithms[key].get_ratings()
+            algorithms_copy_states = {}
+            for key in algorithms.keys():
+                algorithms_copy_states[key] = algorithms_copy[key].get_ratings()
 
             bool_array = [[train_eviction, train_admission]] * repetitions
 
@@ -374,7 +376,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 else:
                     predictions_eviction = decisions_evc[config['target'] + '-RNG']
 
-                print 'Repetition', repetition + 1, 'out of', repetitions
+                if repetitions > 1:
+                    print 'Repetition', repetition + 1, 'out of', repetitions
 
                 samples_to_generate = samples
                 if repetition == 0 and not drop:
@@ -442,8 +445,16 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                                                                           model_eviction,
                                                                           batch_size)
 
+            for key in algorithms.keys():
+                algorithms[key].reset()
+
             test_algorithms_light(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
                                   base_iteration=base_iteration, special_keys=special_keys)
+
+            #for key in algorithms_copy_states.keys():
+            #    if not (key in special_keys or algorithms_copy_states[key] == algorithms[key].get_ratings()):
+            #        print key
+            #    assert key in special_keys or algorithms_copy_states[key] == algorithms[key].get_ratings()
 
             del states_evc
             del states_adm

@@ -230,7 +230,7 @@ def generate_data_for_models(feature_sets,
             if rng_adm:
                 admission_models_predictions.append(admission_models[a].predict(
                     feature_sets[feature_sets_mapping[key]],
-                    verbose=0,
+                    verbose=1,
                     batch_size=batch_size))
             else:
                 admission_models_predictions.append(feature_sets[feature_sets_mapping[key]])
@@ -264,7 +264,7 @@ def generate_data_for_models(feature_sets,
             if rng_adm:
                 eviction_models_predictions.append(eviction_models[e].predict(
                     feature_sets[feature_sets_mapping[key]],
-                    verbose=0,
+                    verbose=1,
                     batch_size=batch_size))
             else:
                 eviction_models_predictions.append(feature_sets[feature_sets_mapping[key]])
@@ -281,7 +281,6 @@ def generate_data_for_models(feature_sets,
             predictions_evc.append(predictions)
         decisions_evc[key] = seen_eviction.index(evc_characteristics)
         feature_source_mapping[key] = (adm_data_index, evc_data_index)
-
     return predictions_adm, decisions_adm, predictions_evc, decisions_evc, feature_source_mapping
 
 
@@ -315,7 +314,7 @@ def generate_data_for_models_light(keys,
             if adm_index < 0:
                 decisions_adm[key] = classical_admission
             else:
-                decisions_adm[key] = [bool(item == 1) for item in classical_feature_set[:, adm_index]]
+                decisions_adm[key] = [bool(item) for item in classical_feature_set[:, adm_index]]
 
         if rng_evc:
             if predictions_evc is None:

@@ -75,9 +75,10 @@ def ecdf(sample):
     return quantiles, cumprob
 
 
-def plot_cum(data, label):
+def plot_cum(data, label, log=True):
     x, y = ecdf(data)
-    plt.xscale('log')
+    if log:
+        plt.xscale('log')
     plt.plot(x, y, label=label, lw=2)
 
 

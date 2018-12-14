@@ -8,6 +8,7 @@ import argparse
 from os import listdir
 from os.path import isfile, join
 from tqdm import tqdm
+from graphs_auxiliary import plot_cum
 
 parser = argparse.ArgumentParser(description='Algorithm tester')
 parser.add_argument("filepath", type=str, help="Output filename")
@@ -61,45 +62,44 @@ time_data = time_data[args.skip:]
 
 tgd = {}
 for key in graph_data.keys():
-    tgd[key] = graph_data[key][args.skip:]
+    tgd[key] = np.asarray(graph_data[key][args.skip:])
 
 graph_data = tgd
 
-for key in graph_data.keys():
-    pstr = '{:^13s} 1% - {:7.4f}% 5% - {:7.4f}% 10% - {:7.4f}% 25% - {:7.4f}% 50% - {:7.4f}% 75% - {:7.4f}% 90% - {:7.4f}% 95% - {:7.4f}% 99% - {:7.4f}%'
-    print pstr.format(key,
-                      100 * np.percentile(graph_data[key], 1),
-                      100 * np.percentile(graph_data[key], 5),
-                      100 * np.percentile(graph_data[key], 10),
-                      100 * np.percentile(graph_data[key], 25),
-                      100 * np.percentile(graph_data[key], 50),
-                      100 * np.percentile(graph_data[key], 75),
-                      100 * np.percentile(graph_data[key], 90),
-                      100 * np.percentile(graph_data[key], 95),
-                      100 * np.percentile(graph_data[key], 99))
+keys_ml = ['ML-GDSF-RNG', 'ML-GDSF-DET']
+keys_cl = ['AL-GDSF', 'SH-GDSF']
 
+diffs = {}
+for key in keys_ml:
+    diffs[key] = {}
+    for key_cl in keys_cl:
+        diffs[key][key_cl] = graph_data[key] - graph_data[key_cl]
 
-fig, ax = plt.subplots()
+for key in diffs.keys():
+    for key_cl in diffs[key].keys():
+        pstr = '{:^20s} 1% - {:7.4f}% 5% - {:7.4f}% 10% - {:7.4f}% 25% - {:7.4f}% 50% - {:7.4f}% 75% - {:7.4f}% 90% - {:7.4f}% 95% - {:7.4f}% 99% - {:7.4f}%'
+        print pstr.format(key + ' ' + key_cl,
+                      100 * np.percentile(diffs[key][key_cl], 1),
+                      100 * np.percentile(diffs[key][key_cl], 5),
+                      100 * np.percentile(diffs[key][key_cl], 10),
+                      100 * np.percentile(diffs[key][key_cl], 25),
+                      100 * np.percentile(diffs[key][key_cl], 50),
+                      100 * np.percentile(diffs[key][key_cl], 75),
+                      100 * np.percentile(diffs[key][key_cl], 90),
+                      100 * np.percentile(diffs[key][key_cl], 95),
+                      100 * np.percentile(diffs[key][key_cl], 99))
 
-accumulated_time = [dt.datetime.fromtimestamp(ts) for ts in time_data]
-xfmt = md.DateFormatter('%Y-%m-%d %H:%M:%S')
-ax.xaxis.set_major_formatter(xfmt)
+for key in diffs.keys():
+    for key_cl in diffs[key].keys():
+        data = 100 * np.asarray(diffs[key][key_cl])
+        plot_cum(data, key + ' ' + key_cl, log=False)
 
-for key in graph_data.keys():
-    if key == 'time':
-        continue
-    data = 100 * np.asarray(graph_data[key])
-    ax.plot(accumulated_time, data, label=key)
+#for key in graph_data.keys():
+#    data = 100 * np.asarray(graph_data[key])
+#    plot_cum(data, key, log=False)
 
-ax2 = ax.twinx()
-ax2.xaxis.set_major_formatter(xfmt)
-ax2.plot(accumulated_time, flow_data, label='Flow', lw=7, alpha=0.4)
-ax2.set_ylabel('GiB per second')
+#plt.xlabel('Hit Rate')
+#plt.ylabel('Fraction %')
 
-fig.autofmt_xdate()
-
-ax.set_xlabel('Time YYYY-MM-DD HH-MM-SS')
-ax.set_ylabel('Hit Rate %')
-
-ax.legend()
+plt.legend()
 plt.show()
