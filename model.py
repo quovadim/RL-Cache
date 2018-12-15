@@ -52,11 +52,19 @@ def create_eviction_model(config, input_dim, common_model):
         #    model_eviction.add(l.BatchNormalization(momentum=momentum))
 
     model_eviction.add(l.Dropout(dropout_rate))
-    model_eviction.add(l.Dense(last_dim, activation='softmax'))
+    activation_last = 'softmax'
+    if config['mc']:
+        activation_last = 'sigmoid'
+    model_eviction.add(l.Dense(last_dim, activation=activation_last))
 
     optimizer = Adam(lr=config['eviction lr'])
 
-    model_eviction.compile(optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+    loss = 'categorical_crossentropy'
+    metrics = ['accuracy']
+    if config['mc']:
+        loss = 'mse'
+        metrics = ['mse']
+    model_eviction.compile(optimizer, loss=loss, metrics=metrics)
 
     return model_eviction
 
@@ -69,7 +77,12 @@ def compile_model(model, config, mtype):
         lr = config['admission lr']
     assert lr is not None
     optimizer = Adam(lr=lr)
-    model.compile(optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+    loss = 'categorical_crossentropy'
+    metrics = ['accuracy']
+    if config['mc']:
+        loss = 'mse'
+        metrics = ['mse']
+    model.compile(optimizer, loss=loss, metrics=metrics)
     return model
 
 
@@ -95,11 +108,19 @@ def create_admission_model(config, input_dim, common_model):
         #if config['use batch normalization']:
         #    model_admission.add(l.BatchNormalization(momentum=momentum))
     model_admission.add(l.Dropout(dropout_rate))
-    model_admission.add(l.Dense(2, activation='softmax'))
+    activation_last = 'softmax'
+    if config['mc']:
+        activation_last = 'sigmoid'
+    model_admission.add(l.Dense(2, activation=activation_last))
 
     optimizer = Adam(lr=config['admission lr'])
 
-    model_admission.compile(optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+    loss = 'categorical_crossentropy'
+    metrics = ['accuracy']
+    if config['mc']:
+        loss = 'mse'
+        metrics = ['mse']
+    model_admission.compile(optimizer, loss=loss, metrics=metrics)
 
     return model_admission
 

@@ -9,10 +9,14 @@ from os import listdir
 from os.path import isfile, join
 from tqdm import tqdm
 
+from graphs_auxiliary import smooth, load_data
+
 parser = argparse.ArgumentParser(description='Algorithm tester')
 parser.add_argument("filepath", type=str, help="Output filename")
 parser.add_argument("-f", "--filename", type=str, default='', help="Output filename")
 parser.add_argument('-s', '--skip', type=int, default=0, help="Skip")
+parser.add_argument('-m', '--smooth', type=int, default=1, help="Smooth factor")
+
 
 args = parser.parse_args()
 
@@ -22,21 +26,7 @@ filenames = [(join(filepath, f), int(f.replace(args.filename + '_', ''))) for f 
 filenames = sorted(filenames, key=lambda x: x[1])
 filenames = [item[0] for item in filenames]
 
-time_data = []
-flow_data = []
-graph_data = {}
-
-for filename in filenames:
-    od = pickle.load(open(filename, 'r'))
-    for key in od.keys():
-        if key == 'time' or key == 'flow' or key == 'size':
-            continue
-        if key not in graph_data.keys():
-            graph_data[key] = []
-        graph_data[key] += od[key]
-
-    time_data += od['time']
-    flow_data.append(od['flow'])
+graph_data, time_data, flow_data = load_data(args.filepath, args.filename)
 
 flow_data = flow_data[args.skip:]
 #m_flow = max(flow_data)
@@ -58,16 +48,19 @@ flow_data = [item / (1024 * 1024 * 1024) for item in flow_data]
 #print ah
 #exit(0)
 time_data = time_data[args.skip:]
+time_data = [int(item) for item in smooth(time_data, args.smooth)]
+flow_data = smooth(flow_data, args.smooth)
 
 tgd = {}
 for key in graph_data.keys():
-    tgd[key] = graph_data[key][args.skip:]
+    tgd[key] = smooth(graph_data[key][args.skip:], args.smooth)
 
 graph_data = tgd
 
 for key in graph_data.keys():
-    pstr = '{:^13s} 1% - {:7.4f}% 5% - {:7.4f}% 10% - {:7.4f}% 25% - {:7.4f}% 50% - {:7.4f}% 75% - {:7.4f}% 90% - {:7.4f}% 95% - {:7.4f}% 99% - {:7.4f}%'
+    pstr = '{:^13s} Mean - {:7.4f}% 1% - {:7.4f}% 5% - {:7.4f}% 10% - {:7.4f}% 25% - {:7.4f}% 50% - {:7.4f}% 75% - {:7.4f}% 90% - {:7.4f}% 95% - {:7.4f}% 99% - {:7.4f}%'
     print pstr.format(key,
+                      100 * np.mean(graph_data[key]),
                       100 * np.percentile(graph_data[key], 1),
                       100 * np.percentile(graph_data[key], 5),
                       100 * np.percentile(graph_data[key], 10),
@@ -85,11 +78,20 @@ accumulated_time = [dt.datetime.fromtimestamp(ts) for ts in time_data]
 xfmt = md.DateFormatter('%Y-%m-%d %H:%M:%S')
 ax.xaxis.set_major_formatter(xfmt)
 
+keys_ml = [item for item in graph_data.keys() if 'ML' in item]
+
 for key in graph_data.keys():
     if key == 'time':
         continue
     data = 100 * np.asarray(graph_data[key])
-    ax.plot(accumulated_time, data, label=key)
+    lw = 2
+    ls = '-'
+    alpha = 0.6
+    if key in keys_ml:
+        lw = 3
+        ls = '--'
+        alpha = 1
+    ax.plot(accumulated_time, data, label=key, lw=lw, linestyle=ls, alpha=alpha)
 
 ax2 = ax.twinx()
 ax2.xaxis.set_major_formatter(xfmt)

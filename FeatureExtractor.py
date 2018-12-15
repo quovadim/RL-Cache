@@ -178,7 +178,8 @@ class PacketFeaturer:
         if self.verbose:
             print 'Bias\033[1m', self.bias, '\033[0mNormalization\033[1m', self.normalization_limit, '\033[0m'
         if config['load']:
-            print 'Loading...'
+            if self.verbose:
+                print 'Loading...'
             try:
                 self.load_statistics(config)
                 if self.verbose:
@@ -253,10 +254,16 @@ class PacketFeaturer:
         return features
 
     def gen_feature_set(self, rows, pure=False):
-        feature_matrix = []
         self.reset()
         counter = 0
-        memory_features = []
+
+        if pure:
+            feature_matrix = np.zeros((len(rows), self.fnum))
+        else:
+            if self.classical:
+                feature_matrix = np.zeros((len(rows), 6))
+            else:
+                feature_matrix = np.zeros((len(rows), self.dim))
 
         iterator = rows
         if self.verbose:
@@ -265,22 +272,22 @@ class PacketFeaturer:
         for row in iterator:
             self.update_packet_state(row)
             if pure:
-                data = self.get_pure_features(row)
+                feature_matrix[counter] = self.get_pure_features(row)
             else:
                 if self.classical:
-                    data = self.get_static_features(row)
+                    feature_matrix[counter] = self.get_static_features(row)
                 else:
-                    data = self.get_ml_features(row)
+                    feature_matrix[counter] = self.get_ml_features(row)
 
-            feature_matrix.append(data)
             self.update_packet_info(row)
             counter += 1
 
-        if not self.classical:
-            for item in feature_matrix:
-                memory_features.append(self.memory_vector)
-                self.memory_vector = self.memory_vector * self.forget_lambda + item * (1 - self.forget_lambda)
-            memory_features = np.asarray(memory_features)
+        if not self.classical and not pure:
+            memory_features = np.zeros((len(rows), self.dim))
+            for i in range(len(rows)):
+                memory_features[i] = self.memory_vector
+                self.memory_vector = self.memory_vector * self.forget_lambda + \
+                                     feature_matrix[i] * (1 - self.forget_lambda)
             feature_matrix = np.concatenate([feature_matrix, memory_features], axis=1)
 
         return np.asarray(feature_matrix)

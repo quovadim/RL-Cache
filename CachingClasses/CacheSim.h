@@ -55,8 +55,8 @@ protected:
 	uint64_t hits;
 	uint64_t misses;
 
-	uint64_t byte_hits;
-	uint64_t byte_misses;
+	double byte_hits;
+	double byte_misses;
 
 	uint64_t cache_size;
 

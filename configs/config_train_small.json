@@ -41,7 +41,7 @@
 	"refresh policy": "monotonic",
 	"refresh value": 50,
 
-	"algorithms": ["AL-GDSF", "AL-LRU", "AL-Oracle", "SH-GDSF", "SH-LRU", "SH-Oracle"],
+	"algorithms": ["AL-GDSF", "AL-LRU", "SH-GDSF", "SH-LRU"],
 	"models": [null, null, null, null, null, null],
 
 	"iterative": true,

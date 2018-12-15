@@ -1,6 +1,10 @@
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from os import listdir
+from os.path import isfile, join
+import pickle
+
 
 header = ['size',
           'frequency',
@@ -99,3 +103,35 @@ def filter_on_percetile(data, low, top):
 def sample_values(data, mval):
     print 'Sampling'
     return np.asarray([np.random.choice(range(0, mval), p=item/sum(item)) for item in tqdm(data)])
+
+
+def smooth(data, factor):
+    data_new = []
+    for i in range(0, len(data), factor):
+        data_new.append(np.mean(data[i:i + factor]))
+    return data_new
+
+
+def load_data(filepath, filename):
+    filenames = [(join(filepath, f), int(f.replace(filename + '_', ''))) for f in listdir(filepath)
+                 if isfile(join(filepath, f)) and filename in f]
+    filenames = sorted(filenames, key=lambda x: x[1])
+    filenames = [item[0] for item in filenames]
+
+    time_data = []
+    flow_data = []
+    graph_data = {}
+
+    for filename in filenames:
+        od = pickle.load(open(filename, 'r'))
+        for key in od.keys():
+            if key == 'time' or key == 'flow':
+                continue
+            if key not in graph_data.keys():
+                graph_data[key] = []
+            graph_data[key] += od[key]
+
+        time_data += od['time']
+        flow_data.append(od['flow'])
+
+    return graph_data, time_data, flow_data

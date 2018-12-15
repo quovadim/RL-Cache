@@ -122,12 +122,14 @@ def metric(algorithm, alpha):
 
 
 def compute_rating(value, total):
-    w = (total - 1) / 2
+    w = (total - 1.0) / 2.0
     return 2. ** (float(value - w))
 
 
 def sampling(prob_matrix):
     maximum_allowed = prob_matrix.shape[1]
+    sums = prob_matrix.sum(axis=1)
+    prob_matrix = prob_matrix / sums[:, np.newaxis]
     prob_matrix = prob_matrix.T
     s = prob_matrix.cumsum(axis=0)
     r = np.random.rand(prob_matrix.shape[1])
@@ -167,10 +169,33 @@ def select_elites(states, actions, rewards, percentile, max_samples):
         elite_indicies = [item[0] for item in selite[:max_samples]]
         percentile_value = min([item[1] for item in selite[:max_samples]])
     samples_used = len(elite_indicies)
-    mean_actions = sum([len(actions[i]) for i in elite_indicies]) / len(elite_indicies)
+    if samples_used == 0:
+        return [], [], max(elite_indicies), 0, 0
+    mean_actions = sum([len(actions[i]) for i in elite_indicies]) / samples_used
     elite_states = np.concatenate([states[i] for i in elite_indicies], axis=0)
     elite_actions = np.concatenate([actions[i] for i in elite_indicies], axis=0)
     return elite_states, elite_actions, percentile_value, samples_used, mean_actions
+
+
+def monte_carlo_sampling(states, actions, rewards, features_embedding, max_action):
+    action_mapping = np.diag(np.ones((max_action,)))
+    total_actions = np.zeros((features_embedding.shape[0], max_action))
+    for i in tqdm(range(len(actions))):
+        total_actions_done = np.zeros((features_embedding.shape[0], max_action))
+        for j in range(len(actions[i])):
+            action = actions[i][j]
+            state = states[i][j]
+            total_actions_done[state] = action_mapping[action]
+        total_actions += total_actions_done * rewards[i]
+    total_actions /= len(rewards)
+    states_index = []
+    for i in range(total_actions.shape[0]):
+        pv = np.prod(total_actions[i])
+        if pv != 0:
+            states_index.append(i)
+    X = features_embedding[states_index]
+    Y = total_actions[states_index]
+    return X, Y
 
 
 def generate_predictions(features, index, rng_mode, binarize):
@@ -213,7 +238,7 @@ def generate_data_for_models(feature_sets,
         a, e = models_mapping[key]
         class_type, rng_adm, adm_index, rng_evc, evc_index, eng_type = name_to_class(key)
         adm_characteristics = str(a) + '|' + str(adm_index)
-        nml_characteristics = str(a)
+        nml_characteristics = 'A' + str(a)
         if rng_adm:
             adm_characteristics += '|ML'
             nml_characteristics += '|ML'
@@ -235,7 +260,6 @@ def generate_data_for_models(feature_sets,
             else:
                 admission_models_predictions.append(feature_sets[feature_sets_mapping[key]])
             nml_characteristics_seen_adm.append(nml_characteristics)
-
         adm_data_index = nml_characteristics_seen_adm.index(nml_characteristics)
         admission_data = admission_models_predictions[adm_data_index]
         if adm_characteristics not in seen_admission:
@@ -245,9 +269,10 @@ def generate_data_for_models(feature_sets,
                                                eng_type,
                                                True)
             predictions_adm.append(predictions)
+
         decisions_adm[key] = seen_admission.index(adm_characteristics)
         evc_characteristics = str(e) + '|' + str(evc_index)
-        nml_characteristics = str(e)
+        nml_characteristics = 'E' + str(e)
         if rng_evc:
             evc_characteristics += '|ML'
             nml_characteristics += '|ML'
@@ -261,7 +286,7 @@ def generate_data_for_models(feature_sets,
             nml_characteristics += '|CLASSIC'
 
         if nml_characteristics not in nml_characteristics_seen_evc:
-            if rng_adm:
+            if rng_evc:
                 eviction_models_predictions.append(eviction_models[e].predict(
                     feature_sets[feature_sets_mapping[key]],
                     verbose=1,
@@ -335,7 +360,12 @@ def generate_data_for_models_light(keys,
 
 def train_model(percentile, model, rewards, states, actions,
                 predictions, features_embedding, answers_embedding, epochs,
-                batch_size, max_samples, label):
+                batch_size, max_samples, label, mc=False, verbose=False):
+
+    if mc:
+        X, Y = monte_carlo_sampling(states, actions, rewards, features_embedding, predictions.shape[1])
+        model.fit(X, Y, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=1)
+        return
     if percentile is not None:
         percentile_value = np.percentile(rewards, percentile)
     else:
@@ -357,28 +387,32 @@ def train_model(percentile, model, rewards, states, actions,
             print 'Decreasing percentile from', percentile_value, 'to', percentile_value - 10
             percentile_value -= 10
 
-    data = elite_actions
-    unique_sampled = get_unique_dict(data, range(predictions.shape[1]))
-    unique_sampled = [int(unique_sampled[i]) if i % 2 == 0 else unique_sampled[i]
-                          for i in range(len(unique_sampled))]
-    rstr_random = ' '.join(['{:4d} : {:7.3f}%'
-                            for _ in range(len(unique_sampled) / 2)]).format(*unique_sampled)
+    if verbose:
+        data = elite_actions
+        unique_sampled = get_unique_dict(data, range(predictions.shape[1]))
+        unique_sampled = [int(unique_sampled[i]) if i % 2 == 0 else unique_sampled[i]
+                              for i in range(len(unique_sampled))]
+        rstr_random = ' '.join(['{:4d} : {:7.3f}%'
+                                for _ in range(len(unique_sampled) / 2)]).format(*unique_sampled)
 
-    print label, rstr_random
+        print label, rstr_random
 
     v = model.fit(features_embedding[elite_states], answers_embedding[elite_actions],
-                  epochs=epochs, batch_size=batch_size, shuffle=True, verbose=1)
+                  epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
 
-    print 'Samples: {:6d} APS: {:^10d} Accuracy: \033[1m{:7.4f}%\033[0m Loss: {:7.5f} ' \
-          'Mean: {:7.4f}% Median: {:7.4f}% Percentile: \033[1m{:7.4f}%\033[0m Max: {:7.4f}%'.format(
-        samples,
-        mean_actions,
-        100 * np.mean(v.history['acc'][0]),
-        np.mean(v.history['loss'][0]),
-        100 * np.mean(rewards),
-        100 * np.median(rewards),
-        100 * percentile_est,
-        100 * max(rewards))
+    if verbose:
+        print 'Samples: {:6d} APS: {:^10d} Accuracy: \033[1m{:7.4f}%\033[0m Loss: {:7.5f} ' \
+              'Mean: {:7.4f}% Median: {:7.4f}% Percentile: \033[1m{:7.4f}%\033[0m Max: {:7.4f}%'.format(
+            samples,
+            mean_actions,
+            100 * np.mean(v.history['acc'][0]),
+            np.mean(v.history['loss'][0]),
+            100 * np.mean(rewards),
+            100 * np.median(rewards),
+            100 * percentile_est,
+            100 * max(rewards))
+
+    return 100 * np.mean(v.history['acc'][0])
 
 
 def test_algorithms(algorithms,
@@ -400,6 +434,15 @@ def test_algorithms(algorithms,
     for key in keys:
         history[key] = []
 
+    special_keys_shrank = []
+    for name in special_keys:
+        name_splitted = name.split('-')
+        name_splitted_short = []
+        for item in name_splitted:
+            name_splitted_short.append(item[:1])
+        special_keys_shrank.append('-'.join(name_splitted_short))
+    special_keys = special_keys_shrank
+
     for i in range(len(rows)):
         for alg in keys:
             algorithms[alg].decide(rows[i],
@@ -414,8 +457,16 @@ def test_algorithms(algorithms,
 
         if i % 100 == 0 or i == len(rows) - 1:
             names = keys
-            values = [100 * metric(algorithms[alg], alpha) for alg in keys]
-            best_performance = keys[values.index(max(values))]
+            names_shrank = []
+            for name in names:
+                name_splitted = name.split('-')
+                name_splitted_short = []
+                for item in name_splitted:
+                    name_splitted_short.append(item[:1])
+                names_shrank.append('-'.join(name_splitted_short))
+            names = names_shrank
+            values = [min(99.99, 100 * metric(algorithms[alg], alpha)) for alg in keys]
+            best_performance = names[values.index(max(values))]
             print_list = []
             for name in names:
                 if name in special_keys:
@@ -448,61 +499,50 @@ def test_algorithms_light(algorithms,
                           predictions_evc,
                           rows,
                           alpha,
-                          output_file=None,
+                          previous_data,
+                          special_keys,
                           base_iteration=0,
-                          special_keys=[]):
+                          print_at=None,
+                          verbose=True):
 
-    counter = 0
-
-    total_size = sum([row['size'] for row in rows])
-    total_time = rows[len(rows) - 1]['timestamp'] - rows[0]['timestamp']
-
-    history = {'time': [], 'flow': 0}
     keys = sorted(algorithms.keys())
-    for key in keys:
-        history[key] = []
 
-    for row in rows:
+    for i in range(len(rows)):
+        if verbose and print_at is not None and i == print_at:
+            print ''
         for alg in keys:
-            algorithms[alg].decide(row, predictions_evc[alg][counter], predictions_adm[alg][counter])
+            algorithms[alg].decide(rows[i], predictions_evc[alg][i], predictions_adm[alg][i])
 
-        if output_file is not None and (counter % 100 < 0 or counter == len(rows) - 1):
-            history['flow'] = float(total_size) / (1e-4 + float(total_time))
-            history['time'].append(row['timestamp'])
-            for key in keys:
-                history[key].append(metric(algorithms[key], alpha))
-
-        if counter % 100 == 0 or counter == len(rows) - 1:
+        if verbose and (i % 100 == 99 or i == len(rows) - 1):
             names = keys
-            values = [100 * metric(algorithms[alg], alpha) for alg in keys]
+            values = [min(99.99, 100 * metric(algorithms[alg], alpha)) for alg in keys]
             best_performance = keys[values.index(max(values))]
+            if previous_data is not None and i == len(rows) - 1:
+                values = [min(99.99, 100 * metric(algorithms[alg], alpha) - previous_data[alg]) for alg in keys]
             print_list = []
             for name in names:
                 if name in special_keys:
                     if name == best_performance:
-                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:6.2f}%\033[0m')
                     else:
-                        print_list.append('\033[92m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+                        print_list.append('\033[92m{:^' + str(len(name)) + 's}\033[0m \033[1m{:6.2f}%\033[0m')
                 else:
                     if name == best_performance:
-                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:6.2f}%\033[0m')
                     else:
-                        print_list.append('{:^' + str(len(name)) + 's} \033[1m{:5.2f}%\033[0m')
+                        print_list.append('{:^' + str(len(name)) + 's} \033[1m{:6.2f}%\033[0m')
             print_string = ' | '.join(print_list)
             print_string = 'Iteration \033[1m{:10d}\033[0m ' + print_string
-            subst_vals = []
+            subst_vals = [base_iteration + i + 1]
             for i in range(len(names)):
                 subst_vals.append(names[i])
                 subst_vals.append(values[i])
-            sys.stdout.write('\r' + print_string.format(*([base_iteration + counter + 1] + subst_vals)))
+            sys.stdout.write('\r' + print_string.format(*subst_vals))
             sys.stdout.flush()
 
-        counter += 1
-
-    print ''
-
-    if output_file is not None:
-        pickle.dump(history, open(output_file, 'w'))
+    if verbose:
+        print ''
+    return dict([(alg, min(99.99, 100 * metric(algorithms[alg], alpha))) for alg in keys])
 
 
 def get_session_features(bool_eviction, bool_admission, predictions_evc, predictions_adm):
@@ -540,6 +580,7 @@ def generate_session_continious(
         algorithm_template,
         config,
         change_point,
+        seed,
         eviction_deterministic=False,
         admission_deterministic=False,
         eviction_defined=False,
@@ -553,12 +594,18 @@ def generate_session_continious(
     lactions_adm = []
 
     np.random.seed()
+    #random.seed()
+    #np.random.seed(seed)
+    #random.seed(seed)
 
     algorithm = copy_object(algorithm_template)
 
     algorithm.reset()
 
     alpha = config['alpha']
+    if 'use hr' not in config.keys():
+        config['use hr'] = True
+    count_hr = config['use hr']
 
     ratings = algorithm.get_ratings()
 
@@ -569,9 +616,14 @@ def generate_session_continious(
 
     gamma = 1.
 
+    full_step = len(rows) == change_point
+
     if config['collect discounted']:
         multiplier = config['initial gamma']
-        gamma = (config['gamma'] / multiplier) ** (1.0 / (len(rows) - change_point))
+        if not full_step:
+            gamma = (config['gamma'] / multiplier) ** (1.0 / (len(rows) - change_point))
+        else:
+            gamma = (config['gamma'] / multiplier) ** (1.0 / (len(rows)))
 
     evc_decision_values, eviction_decisions, adm_decision_values, admission_decisions = \
         get_session_features((eviction_defined, eviction_deterministic),
@@ -583,18 +635,19 @@ def generate_session_continious(
 
     for i in range(len(rows)):
 
-        if config['collect discounted'] and exchanged:
+        if config['collect discounted'] and (exchanged or full_step):
             multiplier *= gamma
 
         hit = algorithm.decide(rows[i], eviction_decisions[i], admission_decisions[i])
-        if hit:
-            reward_hits += multiplier * metric_funct(rows[i]['size'], 1, alpha)
-        reward_total += multiplier * metric_funct(rows[i]['size'], 1, alpha)
+        if count_hr or (config['collect discounted'] and exchanged) or full_step:
+            if hit:
+                reward_hits += multiplier * metric_funct(rows[i]['size'], 1, alpha)
+            reward_total += multiplier * metric_funct(rows[i]['size'], 1, alpha)
 
         if exchanged:
             continue
 
-        if config['change'] and i == change_point - 1:
+        if not full_step and (config['change'] and i == change_point - 1):
             if config['change mode'] == 'deterministic':
                 eviction_deterministic = True
                 admission_deterministic = True

@@ -14,6 +14,8 @@
   "eviction lr": 1e-4,
   "admission lr": 1e-4,
 
+  "mc": false,
+
   "statistics": "configs/config_statistics.json"
 
 }

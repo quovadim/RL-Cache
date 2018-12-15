@@ -8,12 +8,13 @@ import argparse
 from os import listdir
 from os.path import isfile, join
 from tqdm import tqdm
-from graphs_auxiliary import plot_cum
+from graphs_auxiliary import plot_cum, smooth, load_data
 
 parser = argparse.ArgumentParser(description='Algorithm tester')
 parser.add_argument("filepath", type=str, help="Output filename")
 parser.add_argument("-f", "--filename", type=str, default='', help="Output filename")
 parser.add_argument('-s', '--skip', type=int, default=0, help="Skip")
+parser.add_argument('-m', '--smooth', type=int, default=1, help="Smooth factor")
 
 args = parser.parse_args()
 
@@ -23,21 +24,7 @@ filenames = [(join(filepath, f), int(f.replace(args.filename + '_', ''))) for f 
 filenames = sorted(filenames, key=lambda x: x[1])
 filenames = [item[0] for item in filenames]
 
-time_data = []
-flow_data = []
-graph_data = {}
-
-for filename in filenames:
-    od = pickle.load(open(filename, 'r'))
-    for key in od.keys():
-        if key == 'time' or key == 'flow' or key == 'size':
-            continue
-        if key not in graph_data.keys():
-            graph_data[key] = []
-        graph_data[key] += od[key]
-
-    time_data += od['time']
-    flow_data.append(od['flow'])
+graph_data, time_data, flow_data = load_data(args.filepath, args.filename)
 
 flow_data = flow_data[args.skip:]
 #m_flow = max(flow_data)
@@ -59,15 +46,17 @@ flow_data = [item / (1024 * 1024 * 1024) for item in flow_data]
 #print ah
 #exit(0)
 time_data = time_data[args.skip:]
+time_data = [int(item) for item in smooth(time_data, args.smooth)]
+flow_data = smooth(flow_data, args.smooth)
 
 tgd = {}
 for key in graph_data.keys():
-    tgd[key] = np.asarray(graph_data[key][args.skip:])
+    tgd[key] = smooth(graph_data[key][args.skip:], args.smooth)
 
 graph_data = tgd
 
-keys_ml = ['ML-GDSF-RNG', 'ML-GDSF-DET']
-keys_cl = ['AL-GDSF', 'SH-GDSF']
+keys_ml = [item for item in graph_data.keys() if 'ML' in item]
+keys_cl = [item for item in graph_data.keys() if 'ML' not in item]
 
 diffs = {}
 for key in keys_ml:

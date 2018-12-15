@@ -1,5 +1,5 @@
 {
-	"data folder": "data/china_featured",
+	"data folder": "data/american_featured",
 
 	"batch size": 4096,
 
@@ -8,15 +8,15 @@
 	"seed": 278,
 
 	"algorithms": {
-		"AL-GDSF": null,
-		"SH-GDSF": null,
-		"ML-GDSF-RNG": ["configs/config_model.json", "models/adm_M4", null],
-		"ML-GDSF-DET": ["configs/config_model.json", "models/adm_M4", null]
+		"AL-GDSF": [null, 16384],
+		"AL-LRU": [null, 16384],
+		"ML-GDSF-RNG-16384": [["configs/config_model.json", "models/adm_M4", null], 16384],
+		"ML-GDSF-DET-16384": [["configs/config_model.json", "models/adm_M4", null], 16384]
 	},
 
 	"period": 300,
 	"reset": true,
-	"alpha": 0,
+	"alpha": 1,
 
     "warmup": 200000
 }

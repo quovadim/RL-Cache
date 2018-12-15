@@ -1,3 +1,5 @@
 *.so
 *.pyc
+*.png
+*.pyo
 .idea

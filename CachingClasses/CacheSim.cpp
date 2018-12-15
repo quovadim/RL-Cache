@@ -59,7 +59,7 @@ double CacheSim::hit_rate() {
 }
 
 double CacheSim::byte_hit_rate() {
-    return double(byte_hits) / double(byte_hits + byte_misses);
+    return byte_hits / (byte_hits + byte_misses);
 }
 
 uint64_t CacheSim::free_space() {
@@ -74,7 +74,7 @@ bool CacheSim::decide(p::dict request, double eviction_rating, bool admission_de
 
     if (size > cache_size) {
 	    misses += 1;
-	    byte_misses += size;
+	    byte_misses += double(size) / 1000;
 	    return false;
 	}
 
@@ -83,7 +83,7 @@ bool CacheSim::decide(p::dict request, double eviction_rating, bool admission_de
     auto lit = cache.find(id);
 	if (lit != cache.end()) {
 		hits += 1;
-		byte_hits += size;
+		byte_hits += double(size) / 1000;
 
 		if (is_ml_eviction) {
 		    if (updates[id] < refresh_period) {
@@ -111,7 +111,7 @@ bool CacheSim::decide(p::dict request, double eviction_rating, bool admission_de
 	}
 
 	misses += 1;
-	byte_misses += size;
+	byte_misses += double(size) / 1000;
 
 	prediction_updated_admission = true;
 

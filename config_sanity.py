@@ -212,8 +212,11 @@ def load_caching_algorithms(algorithms, tabulation, verbose):
 
     models = {}
     statistics = {}
+
+    sizes = {}
     for key in algorithms.keys():
-        model = algorithms[key]
+        model, cache_size = algorithms[key]
+        sizes[key] = cache_size * 1024 * 1024
         if model is not None:
             target_index = -1
             model, adm_path, evc_path = model
@@ -271,7 +274,7 @@ def load_caching_algorithms(algorithms, tabulation, verbose):
         else:
             statistics[key] = 0
             models[key] = (0, 0)
-    return featurers, statistics, known_admission_models, known_eviction_models, models, common_models_mapping
+    return featurers, statistics, known_admission_models, known_eviction_models, models, common_models_mapping, sizes
 
 
 def check_statistics_config(filename, tabulation='', verbose=True):
@@ -465,7 +468,7 @@ def check_session_configuration(config, tabulation, verbose):
         None,
         None,
         None,
-        (0, 1, (0.1, 0.9)),
+        (0, 1, (0.1, 1.0)),
         (0, 1, (1e-10, 0.1)),
         (-1, 2, None)
     ]
@@ -843,7 +846,7 @@ def check_test_config(filename, tabulation='', verbose=True):
     if response is None:
         return None
     else:
-        featurers, statistics, admission, eviction, models, common_models = response
+        featurers, statistics, admission, eviction, models, common_models, sizes = response
 
     config['featurers'] = featurers
     config['statistics'] = statistics
@@ -851,5 +854,6 @@ def check_test_config(filename, tabulation='', verbose=True):
     config['eviction'] = eviction
     config['models'] = models
     config['common models'] = common_models
+    config['sizes'] = sizes
 
     return config
