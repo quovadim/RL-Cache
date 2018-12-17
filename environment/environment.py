@@ -53,10 +53,9 @@ def test(config, o_file_generator):
     real_start_time = int(real_time())
 
     keys_to_print = config['classical']
-    trainee_class = name2class(config['algorithm type'])
-    for c_size in config['check size']:
-        trainee_class['size'] = c_size
-        keys_to_print += class2name(trainee_class)
+    for name in config['testable']:
+        if name2class(name)['size'] in config['check size']:
+            keys_to_print.append(name)
 
     for row in iterate_dataset(filenames):
 
@@ -581,13 +580,13 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
                     a = train_model(percentile_admission, model_admission, rewards_adm, states_adm, actions_adm,
                                     predictions_admission, ml_features, s_actions_adm, epochs, batch_size,
                                     config['max samples'], 'Admission', monte_carlo, verbose)
-                    model_admission.save_weights(config["eviction path"])
+                    model_admission.save_weights(config["admission path"])
 
                 if local_train_eviction:
                     e = train_model(percentile_eviction, model_eviction, rewards_evc, states_evc, actions_evc,
                                     predictions_eviction, ml_features, s_actions_evc, epochs, batch_size,
                                     config['max samples'], 'Eviction', monte_carlo, verbose)
-                    model_eviction.save_weights(config["admission path"])
+                    model_eviction.save_weights(config["eviction path"])
 
                 if logging:
                     write_accuracy_to_log(config['train history'], a, e, step, repetition)

@@ -154,9 +154,9 @@
 
 	"refresh value":  {
 		"interval": [0, null],
-		"recommendation": [10, null],
+		"recommendation": [0, null],
 		"required": false,
-		"default": 20
+		"default": 0
 	},
 
 	"algorithms":   {

@@ -13,12 +13,13 @@
 	{
 		"collect discounted": true,
 		"change": true,
-		"change mode": "random",
+		"change mode": "default",
 		"seed": 45,
 		"initial gamma": 1.0,
 		"gamma": 0.01,
 		"alpha": 0,
-		"use hr": true
+		"use hr": false,
+		"metric type": "decorrelated"
 	},
 
 	"samples": 300,
@@ -36,8 +37,8 @@
 	"repetitions": 3,
 	"drop": false,
 	"store period": 3,
-	"overlap": 180000,
-	"period": 200000,
+	"overlap": 80000,
+	"period": 100000,
 
 	"refresh policy": "monotonic",
 	"refresh value": 0,

@@ -1,0 +1,57 @@
+{
+	"data": "usa",
+
+	"cache size": 32,
+
+	"target": "ML-LRU",
+
+	"batch size": 4096,
+
+	"seed": 63,
+
+	"session configuration":
+	{
+		"collect discounted": true,
+		"change": true,
+		"change mode": "random",
+		"seed": 45,
+		"initial gamma": 1.0,
+		"gamma": 0.01,
+		"alpha": 0,
+		"use hr": true,
+		"metric type": "correlated"
+	},
+
+	"samples": 300,
+	"max samples": 300,
+
+	"percentile admission": 90,
+	"percentile eviction": 90,
+
+	"epochs": 1,
+	"warmup": 20000,
+	"runs": 20,
+	"duplications": 20,
+	"duplicate": false,
+	"refresh period": 5,
+	"repetitions": 3,
+	"drop": false,
+	"store period": 3,
+	"overlap": 18000,
+	"period": 20000,
+
+	"refresh policy": "monotonic",
+	"refresh value": 0,
+
+	"algorithms": ["AL-GDSF", "AL-LRU", "SH-GDSF", "SH-LRU"],
+
+	"iterative": false,
+	"start iteration": "E",
+
+	"IP:train admission": true,
+	"IP:train eviction": true,
+
+	"dump sessions": false,
+	"dump limit": 200,
+	"dump percentile": 75
+}

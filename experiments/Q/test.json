@@ -1,22 +1,20 @@
 {
-	"data folder": "data/china_featured",
-
-	"output_folder": "tests/Q/test_china",
-
 	"batch size": 4096,
 
 	"seed": 278,
 
-	"max time": 2,
+	"max time": 48,
 
 	"drop keys": true,
 
-	"generic checker": ["AL-GDSF-A-1024", "SH-GDSF-S-1024"],
-	"generic_names": ["ML-GDSF-RNG", "ML-GDSF-DET"],
-	"generic_models": ["experiments/Q/model.json", "experiments/Q/adm", null],
-	"generic_sizes_low": 512,
-	"generic_max": 5,
-	"generic_step": 2,
+	"algorithm type": [["ML-GDSF", "Q"]],
+	"compare algorithms": ["AL-GDSF", "SH-GDSF"],
+
+	"check size": [1024],
+
+	"min size": 512,
+	"max size": 7,
+	"step": 2,
 
 	"period": 300,
 	"reset": true,

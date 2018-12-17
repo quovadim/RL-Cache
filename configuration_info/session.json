@@ -53,5 +53,11 @@
     "recommendation": null,
     "required": false,
     "default": true
+  },
+  "metric type":  {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": "correlated"
   }
 }

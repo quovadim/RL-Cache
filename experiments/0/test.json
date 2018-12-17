@@ -7,7 +7,7 @@
 
 	"drop keys": true,
 
-	"algorithm type": "ML-GDSF",
+	"algorithm type": [["ML-LRU", "0"]],
 	"compare algorithms": ["AL-GDSF", "SH-GDSF"],
 
 	"check size": [1024],

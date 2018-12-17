@@ -302,7 +302,7 @@ def check_train_config(experiment_name, tabulation='', verbose=True):
     return config
 
 
-def check_test_config(experiment_name, test_name, tabulation='', verbose=True, load_only=False):
+def check_test_config(experiment_name, test_name, tabulation='', verbose=True):
 
     configuration_rules = load_json(get_configuration_rules('test.json'))
 
@@ -326,13 +326,11 @@ def check_test_config(experiment_name, test_name, tabulation='', verbose=True, l
     config["data folder"] = get_data_name(test_name)
     config["output folder"] = get_tests_name(experiment_name, test_name)
 
-    if load_only:
-        return config
-
     if not check_existance('data folder', config['data folder'], True, tabulation, 0, verbose, True, directory=True):
         return None
 
     config['classical'] = []
+    config['testable'] = []
     if 'algorithms' not in config.keys():
         algorithms = {}
         multiplier = config['min size']
@@ -347,13 +345,15 @@ def check_test_config(experiment_name, test_name, tabulation='', verbose=True, l
                     algorithms[name] = None
                     classical_keys.append(name)
         config['classical'] = classical_keys
-        for i in range(config['max size'] + 1):
-            size = int(multiplier * (step ** i))
-            class_info = name2class(config["algorithm type"])
-            class_info['size'] = size
-            possible_names = class2name(class_info)
-            for name in possible_names:
-                algorithms[name] = experiment_name
+        for algorithm_type, experiment in config["algorithm type"]:
+            for i in range(config['max size'] + 1):
+                size = int(multiplier * (step ** i))
+                class_info = name2class(algorithm_type)
+                class_info['size'] = size
+                possible_names = class2name(class_info)
+                for name in possible_names:
+                    algorithms[name] = experiment
+                    config['testable'].append(name)
         config['algorithms'] = algorithms
 
     config['max time'] *= 3600
