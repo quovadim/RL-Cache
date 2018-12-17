@@ -14,14 +14,62 @@ import json
 from tqdm import tqdm
 
 
+def write_performance_to_log(log, data, iteration, prefix):
+    pstr = ['{:15d}'] + ['{:^15s} {:10.5f}' for _ in data.keys()]
+    pstr = ' '.join(pstr)
+    insertion = [iteration]
+    for key in data.keys():
+        insertion.append(key)
+        insertion.append(data[key])
+
+    pstr = pstr.format(*insertion)
+    pstr = ' '.join(pstr.split())
+    log.write(prefix + ' ' + pstr + '\n')
+    log.flush()
+
+
+def write_run(log, run_id):
+    log.write('RUN' + ' ' + str(run_id) + '\n')
+    log.flush()
+
+
+def write_accuracy_to_log(log, a, e, step, repetition):
+    data = [step, repetition, a, e]
+    data = [str(item) for item in data]
+    data = ' '.join(data)
+    log.write('ACCURACY' + ' ' + data + '\n')
+    log.flush()
+
+
 def to_ts(time_diff):
+    time_series = ['{:2d}s', '{:2d}m', '{:2d}h', '{:d}d']
+    data_to_use = []
     seconds = time_diff % 60
     time_diff /= 60
+
+    data_to_use.append(seconds)
+
     minutes = time_diff % 60
     time_diff /= 60
-    hours = time_diff % 60
-    time_diff = '{:2d}:{:2d}:{:2d}'.format(hours, minutes, seconds)
-    return time_diff.replace(' ', '0')
+
+    if minutes != 0 or time_diff % 60 != 0:
+        data_to_use.append(minutes)
+
+    hours = time_diff % 24
+    time_diff /= 24
+
+    if hours != 0 or time_diff % 24 != 0:
+        data_to_use.append(hours)
+
+    days = time_diff % 24
+
+    if days != 0:
+        data_to_use.append(days)
+
+    data_to_print = []
+    for i in reversed(range(len(data_to_use))):
+        data_to_print.append(time_series[i].format(data_to_use[i]).replace(' ', '0'))
+    return ':'.join(data_to_print)
 
 
 def threaded(f, daemon=False):
@@ -212,7 +260,6 @@ def generate_predictions(features, index, rng_mode, binarize):
 
 
 def generate_data_for_models(feature_sets,
-                             feature_sets_mapping,
                              admission_models,
                              eviction_models,
                              models_mapping,
@@ -224,19 +271,25 @@ def generate_data_for_models(feature_sets,
 
     predictions_adm = []
     predictions_evc = []
-    seen_admission = []
 
     admission_models_predictions = []
     eviction_models_predictions = []
 
-    nml_characteristics_seen_adm = []
-    nml_characteristics_seen_evc = []
+    nml_characteristics_seen = []
+    seen = []
 
-    seen_eviction = []
     cdk = 0
+    operational_keys = []
+    classical_keys = []
     for key in models_mapping.keys():
+        _, rng_adm, _, _, _, _ = name_to_class(key)
+        if not rng_adm:
+            classical_keys.append(key)
+        else:
+            operational_keys.append(key)
+    for key in classical_keys + operational_keys:
         a, e = models_mapping[key]
-        class_type, rng_adm, adm_index, rng_evc, evc_index, eng_type = name_to_class(key)
+        _, rng_adm, adm_index, _, _, eng_type = name_to_class(key)
         adm_characteristics = str(a) + '|' + str(adm_index)
         nml_characteristics = 'A' + str(a)
         if rng_adm:
@@ -251,26 +304,46 @@ def generate_data_for_models(feature_sets,
             adm_characteristics += '|CLASSIC'
             nml_characteristics += '|CLASSIC'
 
-        if nml_characteristics not in nml_characteristics_seen_adm:
+        if nml_characteristics not in nml_characteristics_seen:
             if rng_adm:
                 admission_models_predictions.append(admission_models[a].predict(
-                    feature_sets[feature_sets_mapping[key]],
-                    verbose=1,
+                    feature_sets[a],
+                    verbose=0,
                     batch_size=batch_size))
             else:
-                admission_models_predictions.append(feature_sets[feature_sets_mapping[key]])
-            nml_characteristics_seen_adm.append(nml_characteristics)
-        adm_data_index = nml_characteristics_seen_adm.index(nml_characteristics)
+                admission_models_predictions.append(feature_sets[a])
+            nml_characteristics_seen.append(nml_characteristics)
+        adm_data_index = nml_characteristics_seen.index(nml_characteristics)
         admission_data = admission_models_predictions[adm_data_index]
-        if adm_characteristics not in seen_admission:
-            seen_admission.append(adm_characteristics)
+        if adm_characteristics not in seen:
+            seen.append(adm_characteristics)
             predictions = generate_predictions(admission_data,
                                                adm_index,
                                                eng_type,
                                                True)
             predictions_adm.append(predictions)
 
-        decisions_adm[key] = seen_admission.index(adm_characteristics)
+        decisions_adm[key] = seen.index(adm_characteristics)
+
+        feature_source_mapping[key] = [adm_data_index, 0]
+
+    nml_characteristics_seen = []
+    seen = []
+
+    cdk = 0
+
+    operational_keys = []
+    classical_keys = []
+    for key in models_mapping.keys():
+        _, _, _, rng_evc, _, _ = name_to_class(key)
+        if not rng_evc:
+            classical_keys.append(key)
+        else:
+            operational_keys.append(key)
+
+    for key in classical_keys + operational_keys:
+        a, e = models_mapping[key]
+        _, _, _, rng_evc, evc_index, eng_type = name_to_class(key)
         evc_characteristics = str(e) + '|' + str(evc_index)
         nml_characteristics = 'E' + str(e)
         if rng_evc:
@@ -285,27 +358,29 @@ def generate_data_for_models(feature_sets,
             evc_characteristics += '|CLASSIC'
             nml_characteristics += '|CLASSIC'
 
-        if nml_characteristics not in nml_characteristics_seen_evc:
+        if nml_characteristics not in nml_characteristics_seen:
             if rng_evc:
                 eviction_models_predictions.append(eviction_models[e].predict(
-                    feature_sets[feature_sets_mapping[key]],
-                    verbose=1,
+                    feature_sets[e],
+                    verbose=0,
                     batch_size=batch_size))
             else:
-                eviction_models_predictions.append(feature_sets[feature_sets_mapping[key]])
-            nml_characteristics_seen_evc.append(nml_characteristics)
+                eviction_models_predictions.append(feature_sets[e])
+            nml_characteristics_seen.append(nml_characteristics)
 
-        evc_data_index = nml_characteristics_seen_evc.index(nml_characteristics)
+        evc_data_index = nml_characteristics_seen.index(nml_characteristics)
         eviction_data = eviction_models_predictions[evc_data_index]
-        if evc_characteristics not in seen_eviction:
-            seen_eviction.append(evc_characteristics)
+        if evc_characteristics not in seen:
+            seen.append(evc_characteristics)
             predictions = generate_predictions(eviction_data,
                                                evc_index,
                                                eng_type,
                                                False)
             predictions_evc.append(predictions)
-        decisions_evc[key] = seen_eviction.index(evc_characteristics)
-        feature_source_mapping[key] = (adm_data_index, evc_data_index)
+        decisions_evc[key] = seen.index(evc_characteristics)
+
+        feature_source_mapping[key][1] = evc_data_index
+
     return predictions_adm, decisions_adm, predictions_evc, decisions_evc, feature_source_mapping
 
 
@@ -364,7 +439,7 @@ def train_model(percentile, model, rewards, states, actions,
 
     if mc:
         X, Y = monte_carlo_sampling(states, actions, rewards, features_embedding, predictions.shape[1])
-        model.fit(X, Y, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=1)
+        model.fit(X, Y, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
         return
     if percentile is not None:
         percentile_value = np.percentile(rewards, percentile)
@@ -401,7 +476,7 @@ def train_model(percentile, model, rewards, states, actions,
                   epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
 
     if verbose:
-        print 'Samples: {:6d} APS: {:^10d} Accuracy: \033[1m{:7.4f}%\033[0m Loss: {:7.5f} ' \
+        print 'Samples: {:6d} APS: {:^10d} \033[94mAccuracy\033[0m: \033[1m{:7.4f}%\033[0m Loss: {:7.5f} ' \
               'Mean: {:7.4f}% Median: {:7.4f}% Percentile: \033[1m{:7.4f}%\033[0m Max: {:7.4f}%'.format(
             samples,
             mean_actions,
@@ -424,27 +499,19 @@ def test_algorithms(algorithms,
                     alpha,
                     output_file=None,
                     base_iteration=0,
-                    special_keys=[]):
+                    verbose=True,
+                    keys_to_print=[]):
 
     total_size = sum([row['size'] for row in rows])
     total_time = rows[len(rows) - 1]['timestamp'] - rows[0]['timestamp']
 
-    history = {'time': [], 'flow': 0}
+    history = {'time': [], 'flow': 0, 'alphas': alpha}
     keys = sorted(algorithms.keys())
     for key in keys:
         history[key] = []
 
-    special_keys_shrank = []
-    for name in special_keys:
-        name_splitted = name.split('-')
-        name_splitted_short = []
-        for item in name_splitted:
-            name_splitted_short.append(item[:1])
-        special_keys_shrank.append('-'.join(name_splitted_short))
-    special_keys = special_keys_shrank
-
     for i in range(len(rows)):
-        for alg in keys:
+        for alg in algorithms.keys():
             algorithms[alg].decide(rows[i],
                                    predictions_evc[decisions_evc[alg]][i],
                                    predictions_adm[decisions_adm[alg]][i])
@@ -452,40 +519,36 @@ def test_algorithms(algorithms,
         if output_file is not None and i == len(rows) - 1:
             history['flow'] = float(total_size) / (1e-4 + float(total_time))
             history['time'].append(rows[i]['timestamp'])
-            for key in keys:
-                history[key].append(metric(algorithms[key], alpha))
+            for key in algorithms.keys():
+                data_value = [metric(algorithms[key], alpha_value) for alpha_value in alpha]
+                history[key].append(data_value)
 
-        if i % 100 == 0 or i == len(rows) - 1:
-            names = keys
-            names_shrank = []
-            for name in names:
-                name_splitted = name.split('-')
-                name_splitted_short = []
-                for item in name_splitted:
-                    name_splitted_short.append(item[:1])
-                names_shrank.append('-'.join(name_splitted_short))
-            names = names_shrank
-            values = [min(99.99, 100 * metric(algorithms[alg], alpha)) for alg in keys]
-            best_performance = names[values.index(max(values))]
-            print_list = []
-            for name in names:
-                if name in special_keys:
-                    if name == best_performance:
-                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
+        if verbose and i % 100 == 0 or i == len(rows) - 1:
+            print_list_total = []
+            values_print_alphas = [base_iteration + i + 1]
+
+            for alpha_value in alpha:
+                values = [min(99.99, 100 * metric(algorithms[alg], alpha_value)) for alg in keys_to_print]
+                best_performance = keys_to_print[values.index(max(values))]
+                worst_performance = keys_to_print[values.index(min(values))]
+                print_list = ['\033[93m{:2.1f}\033[0m']
+                for name in keys_to_print:
+                    if name == best_performance or name == worst_performance:
+                        if name == best_performance:
+                            print_list.append('\033[92m{:^' + str(len(name)) + 's}\033[0m : \033[1m{:5.2f}%\033[0m')
+                        else:
+                            print_list.append('\033[91m{:^' + str(len(name)) + 's}\033[0m : \033[1m{:5.2f}%\033[0m')
                     else:
-                        print_list.append('\033[92m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
-                else:
-                    if name == best_performance:
-                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:5.2f}%\033[0m')
-                    else:
-                        print_list.append('{:^' + str(len(name)) + 's} \033[1m{:5.2f}%\033[0m')
-            print_string = ' | '.join(print_list)
-            print_string = 'Iteration \033[1m{:10d}\033[0m ' + print_string
-            subst_vals = []
-            for j in range(len(names)):
-                subst_vals.append(names[j])
-                subst_vals.append(values[j])
-            sys.stdout.write('\r' + print_string.format(*([base_iteration + i + 1] + subst_vals)))
+                        print_list.append('\033[94m{:^' + str(len(name)) + 's}\033[0m : \033[1m{:5.2f}%\033[0m')
+                subst_vals = [alpha_value]
+                for j in range(len(keys_to_print)):
+                    subst_vals.append(keys_to_print[j])
+                    subst_vals.append(values[j])
+                print_list_total += print_list
+                values_print_alphas += subst_vals
+            print_string = '   '.join(print_list_total)
+            print_string = 'I \033[1m{:10d}\033[0m ' + print_string
+            sys.stdout.write('\r' + print_string.format(*values_print_alphas))
             sys.stdout.flush()
 
     print ''
@@ -523,12 +586,12 @@ def test_algorithms_light(algorithms,
             for name in names:
                 if name in special_keys:
                     if name == best_performance:
-                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:6.2f}%\033[0m')
+                        print_list.append('\033[93m{:^' + str(len(name)) + 's} \033[0m \033[1m{:6.2f}%\033[0m')
                     else:
-                        print_list.append('\033[92m{:^' + str(len(name)) + 's}\033[0m \033[1m{:6.2f}%\033[0m')
+                        print_list.append('\033[92m{:^' + str(len(name)) + 's} \033[0m \033[1m{:6.2f}%\033[0m')
                 else:
                     if name == best_performance:
-                        print_list.append('\033[93m{:^' + str(len(name)) + 's}\033[0m \033[1m{:6.2f}%\033[0m')
+                        print_list.append('\033[93m{:^' + str(len(name)) + 's} \033[0m \033[1m{:6.2f}%\033[0m')
                     else:
                         print_list.append('{:^' + str(len(name)) + 's} \033[1m{:6.2f}%\033[0m')
             print_string = ' | '.join(print_list)
@@ -612,7 +675,10 @@ def generate_session_continious(
     multiplier = 1.
 
     reward_hits = 0
-    reward_total = 0
+    reward_miss = 0
+
+    byte_reward_hits = 0
+    byte_reward_miss = 0
 
     gamma = 1.
 
@@ -641,8 +707,11 @@ def generate_session_continious(
         hit = algorithm.decide(rows[i], eviction_decisions[i], admission_decisions[i])
         if count_hr or (config['collect discounted'] and exchanged) or full_step:
             if hit:
-                reward_hits += multiplier * metric_funct(rows[i]['size'], 1, alpha)
-            reward_total += multiplier * metric_funct(rows[i]['size'], 1, alpha)
+                byte_reward_hits += multiplier * float(rows[i]['size'])
+                reward_hits += multiplier
+            else:
+                byte_reward_miss += multiplier * float(rows[i]['size'])
+                reward_miss += multiplier
 
         if exchanged:
             continue
@@ -673,8 +742,11 @@ def generate_session_continious(
             lstates_adm.append(i)
             lactions_adm.append(adm_decision_values[i])
 
-    eviction_rating = reward_hits / reward_total
-    admission_rating = reward_hits / reward_total
+    ohr_reward = reward_hits / (reward_hits + reward_miss)
+    bhr_reward = byte_reward_hits / (byte_reward_hits + byte_reward_miss)
+
+    eviction_rating = metric_funct(bhr_reward, ohr_reward, alpha)
+    admission_rating = metric_funct(bhr_reward, ohr_reward, alpha)
 
     assert algorithm_template.get_ratings() == ratings
 

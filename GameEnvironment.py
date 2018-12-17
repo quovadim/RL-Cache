@@ -6,8 +6,14 @@ from model import *
 import tensorflow as tf
 
 from tqdm import tqdm
-from hurry.filesize import size as fsize
+from hurry.filesize import size as hurry_fsize
 import sys
+from time import time as real_time
+
+
+def fsize(size):
+    result = hurry_fsize(size)
+    return result[:len(result) - 1] + ' ' + result[len(result) - 1]
 
 
 def test(config, o_file_generator):
@@ -16,33 +22,43 @@ def test(config, o_file_generator):
 
     filenames = collect_filenames(config['data folder'])
 
+    np.random.seed(config['seed'])
+    random.seed(config['seed'] + 1)
+    tf.set_random_seed(config['seed'] + 2)
+
     featurers = config['featurers']
     admission_models = config['admission']
     eviction_models = config['eviction']
     models = config['models']
-    statistics = config['statistics']
     sizes = config['sizes']
-
-    cache_size = config['cache size'] * 1024 * 1024
 
     classes_names = config['algorithms'].keys()
 
     algorithms = {}
 
-    counter = 0
-
-    special_keys = []
-
     for class_name in classes_names:
         class_type, rng_adm, _, rng_evc, _, _ = name_to_class(class_name)
-        if rng_adm or rng_evc:
-            special_keys.append(class_name)
         algorithms[class_name] = class_type(sizes[class_name])
 
     start_time = None
 
     warmup_length = config['warmup']
+    counter = -warmup_length
     needs_warmup = True
+
+    trace_beginning_time = None
+    trace_collected_size = 0
+
+    max_time_diff = config["max time"] * 86400
+
+    generic = config['generic']
+
+    real_start_time = int(real_time())
+
+    if generic:
+        keys_to_print = config['generic checker'] + ["ML-GDSF-RNG-1024", "ML-GDSF-DET-1024"]
+    else:
+        keys_to_print = []
 
     for row in iterate_dataset(filenames):
 
@@ -51,17 +67,11 @@ def test(config, o_file_generator):
         if start_time is None:
             start_time = row['timestamp']
 
-        if len(current_rows) % 1000 == 0:
-            sys.stdout.write('\rCollected: ' + str(len(current_rows)))
-            sys.stdout.flush()
-
         if (needs_warmup and len(current_rows) == warmup_length) \
-                or (not needs_warmup and row['timestamp'] - start_time > config['period']):
+                or (not needs_warmup and row['timestamp'] - start_time >= config['period']):
             start_time = row['timestamp']
 
             feature_sets = []
-
-            print '\rCollected: ' + str(len(current_rows))
 
             if config['reset']:
                 for alg in algorithms.keys():
@@ -76,11 +86,31 @@ def test(config, o_file_generator):
 
             predictions_adm, decisions_adm, \
             predictions_evc, decisions_evc, _ = generate_data_for_models(feature_sets,
-                                                                         statistics,
                                                                          admission_models,
                                                                          eviction_models,
                                                                          models,
                                                                          config['batch size'])
+
+            if not needs_warmup:
+                if trace_beginning_time is None:
+                    trace_beginning_time = current_rows[0]['timestamp']
+                end_time = current_rows[len(current_rows) - 1]['timestamp']
+                if max_time_diff != 0 and (end_time - trace_beginning_time) > max_time_diff:
+                    break
+
+                trace_collected_size += sum([item['size'] for item in current_rows])
+                virt_time_spent = end_time - trace_beginning_time
+                real_time_spent = int(real_time()) - real_start_time
+                virt_time_left = max_time_diff - (end_time - trace_beginning_time)
+                real_time_left = int(max_time_diff * float(real_time_spent) / float(virt_time_spent)) - real_time_spent
+
+                print 'Collected: {:<10d}'.format(len(current_rows)), \
+                    'Traffic flow {:>6s}bpS'.format(
+                        fsize(8 * trace_collected_size / (end_time - trace_beginning_time))), \
+                    'Real Time left', to_ts(real_time_left), \
+                    'Virt Time left', to_ts(virt_time_left), \
+                    'Real time spent', to_ts(real_time_spent), \
+                    'Virt time spent', to_ts(virt_time_spent)
 
             log_file = o_file_generator + '_' + str(file_counter)
             if needs_warmup:
@@ -90,11 +120,16 @@ def test(config, o_file_generator):
                             config['alpha'],
                             output_file=log_file,
                             base_iteration=counter,
-                            special_keys=special_keys)
+                            keys_to_print=keys_to_print)
+
+            if config['reset']:
+                for alg in algorithms.keys():
+                    algorithms[alg].reset()
+
+            counter += len(current_rows)
 
             if not needs_warmup:
                 file_counter += 1
-                counter += len(current_rows)
 
             current_rows = []
 
@@ -111,6 +146,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
     if 'mc' not in config_model.keys():
         config_model['mc'] = False
+
+    real_start_time = int(real_time())
 
     monte_carlo = config_model['mc']
 
@@ -185,25 +222,59 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
     total_duplications = duplication
 
-    print '\033[93m' + ''.join(['-'] * 180) + '\033[0m'
+    logging = False
+    if 'train history' in config.keys():
+        if verbose:
+            print '\033[91mLOG AT', config['train history'], '\033[0m'
+        config['train history'] = open(config['train history'], 'a')
+        logging = True
+
+    duplicate = False
+    if 'duplicate' in config.keys():
+        duplicate = config['duplicate']
 
     while iteration <= runs:
+        if not duplicate and iteration > runs:
+            iteration = 0
+            refresh_value = config['refresh value']
+            warming_to_required_state = False
+            additional_warming = 0
+            empty_loops = 0
 
-        config['session configuration']['seed'] = random.randint(0, 1000000 - 1)
+            continue
 
-        print_string = 'Using cache with size \033[1m\033[94m{:^6s}-{:^6s}\033[0m ' \
-                       'next_duplication in \033[1m{:^4d}-{:^4d}\033[0m ' \
-                       'Duplications left \033[1m{:^4d}-{:^4d}\033[0m ' \
-                       'period \033[1m{:^9d}-{:^9d}\033[0m ' \
-                       'samples \033[1m{:^5d}-{:^5d}\033[0m ' \
-                       'seed \033[1m{:6d}\033[0m'
+        if logging:
+            write_run(config['train history'], iteration)
 
-        print print_string.format(fsize(cache_size), fsize(cache_size + initial_cache_size * duplication),
-                                  runs - iteration, runs,
-                                  duplication, total_duplications,
-                                  period, period + initial_prediod * duplication,
-                                  samples, samples + initial_samples * duplication,
-                                  config['session configuration']['seed'])
+        cache_size_str = hurry_fsize(cache_size)
+        if duplication != 0 and duplicate:
+            print_string = 'Using \033[1m\033[94m{:' + str(len(cache_size_str)) + 's} cache up to {:^6s}\033[0m ' \
+                           'next duplication in \033[1m{:>4d}/{:<4d}\033[0m ' \
+                           'duplications left \033[1m{:>4d}/{:<4d}\033[0m ' \
+                           'period \033[1m{:>9d}/{:<9d}\033[0m ' \
+                           'samples \033[1m{:>5d}/{:<5d}\033[0m ' \
+                           'seed \033[1m{:^6d}\033[0m ' \
+                           'step \033[1m{:^6d}\033[0m'
+            insertion = [cache_size_str, hurry_fsize(cache_size + initial_cache_size * duplication),
+                         runs - iteration, runs,
+                         duplication, total_duplications,
+                         period, period + initial_prediod * duplication,
+                         samples, samples + initial_samples * duplication,
+                         config['session configuration']['seed'], step]
+
+            if logging:
+                config['train history'].write(print_string.format(insertion) + '\n')
+        else:
+            print_string = 'Using \033[1m\033[94m{:' + str(len(cache_size_str)) + 's} \033[0mcache ' \
+                           'done in \033[1m{:^4d}\033[0m ' \
+                           'period \033[1m{:^9d}\033[0m ' \
+                           'samples \033[1m{:^5d}\033[0m ' \
+                           'seed \033[1m{:^6d}\033[0m ' \
+                           'step \033[1m{:^6d}\033[0m'
+            insertion = [hurry_fsize(cache_size), runs - iteration, period, samples,
+                         config['session configuration']['seed'], step]
+
+        print print_string.format(*insertion), 'Time spent\033[1m', to_ts(int(real_time()) - real_start_time), '\033[0m'
 
         print '\033[93m' + ''.join(['-'] * 180) + '\033[0m'
 
@@ -260,7 +331,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
         featurer.full_reset()
         skip_required = warmup_period != 0
-        base_iteration = 0
+        base_iteration = -warmup_period
 
         if config['iterative']:
             assert not eviction_classical and not admission_classical
@@ -292,6 +363,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
         classical_features = None
 
         steps_before_skip = config['refresh period']
+        step_length = config['refresh period']
 
         start_time = None
         end_time = 0
@@ -307,8 +379,18 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
             if (skip_required and len(current_rows) != warmup_period) or \
                     (not skip_required and not warming_to_required_state and len(current_rows) != period) or \
                     (not skip_required and warming_to_required_state and len(current_rows) !=
-                     step * config['refresh period']):
+                     step * step_length):
                 continue
+
+            if not skip_required:
+                if start_time is None:
+                    start_time = current_rows[0]['timestamp']
+                if ml_features is None:
+                    total_size += sum([item['size'] for item in current_rows])
+                    end_time = row['timestamp']
+                else:
+                    total_size += sum([item['size'] for item in current_rows[:step]])
+                    end_time = current_rows[step - 1]['timestamp']
 
             if ml_features is None:
                 featurer.classical = False
@@ -335,24 +417,15 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 batch_size
             )
 
-            if not skip_required:
-                if start_time is None:
-                    start_time = current_rows[0]['timestamp']
-                if warming_to_required_state:
-                    total_size += sum([item['size'] for item in current_rows])
-                    end_time = current_rows[len(current_rows) - 1]['timestamp']
-                else:
-                    total_size += sum([item['size'] for item in current_rows[:step]])
-                    end_time = current_rows[step]['timestamp']
-
             if skip_required or warming_to_required_state:
                 verbose_print = True
 
-                test_algorithms_light(algorithms, decisions_adm, decisions_evc,
-                                      current_rows, alpha, None, special_keys,
-                                      base_iteration=base_iteration, verbose=verbose_print)
+                data = test_algorithms_light(algorithms, decisions_adm, decisions_evc,
+                                             current_rows, alpha, None, special_keys,
+                                             base_iteration=base_iteration, verbose=verbose_print)
 
                 if warming_to_required_state:
+                    step_length = config['refresh period']
                     if empty_loops == additional_warming:
                         warming_to_required_state = False
                     else:
@@ -361,6 +434,9 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                 ml_features = None
                 classical_features = None
                 base_iteration += len(current_rows)
+
+                if logging:
+                    write_performance_to_log(config['train history'], data, base_iteration + warmup_period, 'W')
 
                 current_rows = []
 
@@ -375,8 +451,8 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
             time_diff = to_ts(end_time - start_time)
             if verbose:
-                print 'Size arrived \033[1m{:^15s}\033[0m Time passed\033[1m'.format(fsize(total_size)), \
-                    time_diff, '\033[0m'
+                print 'Traffic flow \033[1m{:>6s}bpS\033[0m Time passed\033[1m'.format(
+                    fsize(8 * total_size / (end_time - start_time))), time_diff, '\033[0m'
 
             if config['refresh period'] > 1 and verbose:
                 print 'Step\033[1m', 1 + config['refresh period'] - steps_before_skip, \
@@ -393,15 +469,19 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
             states_evc, actions_evc, rewards_evc = [], [], []
             addition_history = []
 
-            if verbose:
+            if verbose or logging:
                 algorithms_copy = {}
                 for key in algorithms.keys():
                     algorithms_copy[key] = copy_object(algorithms[key])
                     algorithms_copy[key].reset()
 
-                test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc, current_rows, alpha,
-                                      None, special_keys, base_iteration=base_iteration, print_at=step,
-                                      verbose=verbose)
+                data = test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
+                                             None, special_keys, base_iteration=base_iteration, print_at=step,
+                                             verbose=verbose)
+                if logging:
+                    write_performance_to_log(config['train history'], data, base_iteration + warmup_period + step, 'B')
+
+            config['session configuration']['seed'] = random.randint(0, 1000000 - 1)
 
             for repetition in range(repetitions):
                 local_train_eviction, local_train_admission = bool_array[repetition]
@@ -434,6 +514,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                                                                         verbose=0)
                 else:
                     predictions_admission = decisions_adm[config['target'] + '-RNG']
+
                 if not eviction_classical:
                     if local_train_eviction or repetition == 0:
                         predictions_eviction = model_eviction.predict(ml_features,
@@ -443,7 +524,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                     predictions_eviction = decisions_evc[config['target'] + '-RNG']
 
                 if repetitions > 1 and (verbose or show):
-                    print 'Repetition', repetition + 1, 'out of', repetitions
+                    print 'Repetition\033[1m', repetition + 1, '\033[0mout of\033[1m', repetitions, '\033[0m'
 
                 a = 0
                 e = 0
@@ -497,9 +578,6 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                         actions_evc.append(ae)
                         rewards_evc.append(re)
 
-                if verbose:
-                    print 'Admission samples', len(rewards_adm), 'Eviction samples', len(rewards_evc)
-
                 if local_train_admission:
                     a = train_model(percentile_admission, model_admission, rewards_adm, states_adm, actions_adm,
                                     predictions_admission, ml_features, s_actions_adm, epochs, batch_size,
@@ -512,26 +590,30 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                                     config['max samples'], 'Eviction', monte_carlo, verbose)
                     model_eviction.save_weights(eviction_path)
 
-            decisions_adm, decisions_evc = generate_data_for_models_light(algorithms.keys(), algorithms_data,
-                                                                          classical_features, ml_features,
-                                                                          model_admission, model_eviction,
-                                                                          batch_size)
+                if logging:
+                    write_accuracy_to_log(config['train history'], a, e, step, repetition)
 
-            if verbose:
-                algorithms_copy = {}
-                for key in algorithms.keys():
-                    algorithms_copy[key] = copy_object(algorithms[key])
-                    algorithms_copy[key].reset()
+                if logging or verbose or repetition == repetitions - 1:
+                    decisions_adm, decisions_evc = generate_data_for_models_light(algorithms.keys(), algorithms_data,
+                                                                                  classical_features, ml_features,
+                                                                                  model_admission, model_eviction,
+                                                                                  batch_size)
+                    algorithms_copy = {}
+                    if repetition == repetitions - 1:
+                        for key in algorithms.keys():
+                            algorithms[key].reset()
+                        algorithms_copy = algorithms
+                    else:
+                        for key in algorithms.keys():
+                            algorithms_copy[key] = copy_object(algorithms[key])
+                            algorithms_copy[key].reset()
 
-                test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc, current_rows, alpha,
-                                      None, special_keys, base_iteration=base_iteration, print_at=step,
-                                      verbose=verbose)
-
-            for key in algorithms.keys():
-                algorithms[key].reset()
-
-            test_algorithms_light(algorithms, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                                  None, special_keys, base_iteration=base_iteration, verbose=False)
+                    data = test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc,
+                                                 current_rows[:step], alpha, None, special_keys,
+                                                 base_iteration=base_iteration, print_at=step, verbose=verbose)
+                    if logging:
+                        write_performance_to_log(config['train history'], data, base_iteration + warmup_period + step,
+                                                 'A' + str(repetition))
 
             if not verbose:
                 if not show:

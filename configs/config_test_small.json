@@ -16,7 +16,7 @@
 
 	"period": 300,
 	"reset": true,
-	"alpha": 1,
+	"alpha": 0,
 
     "warmup": 200000
 }

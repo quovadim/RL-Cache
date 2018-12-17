@@ -211,7 +211,6 @@ def load_caching_algorithms(algorithms, tabulation, verbose):
     common_models_mapping = {}
 
     models = {}
-    statistics = {}
 
     sizes = {}
     for key in algorithms.keys():
@@ -221,6 +220,7 @@ def load_caching_algorithms(algorithms, tabulation, verbose):
             target_index = -1
             model, adm_path, evc_path = model
             model_config = check_model_config(model, tabulation=tabulation, verbose=verbose)
+            #Check model and it's Statistics, based on this create featurer
             if model_config is None:
                 return None
             if model_config['statistics'] in known_names:
@@ -237,7 +237,7 @@ def load_caching_algorithms(algorithms, tabulation, verbose):
                     target_index = len(known_names)
                     known_names.append(model_config['statistics'])
                     known_configs.append(statistics_config)
-                    featurers.append(PacketFeaturer(statistics_config))
+                    featurers.append(PacketFeaturer(statistics_config, verbose=False))
 
             adm_model = 0
             evc_model = 0
@@ -270,11 +270,10 @@ def load_caching_algorithms(algorithms, tabulation, verbose):
                     known_eviction_models.append(model)
                     known_eviction_names.append(name_to_use)
             models[key] = (adm_model, evc_model)
-            statistics[key] = target_index
         else:
-            statistics[key] = 0
             models[key] = (0, 0)
-    return featurers, statistics, known_admission_models, known_eviction_models, models, common_models_mapping, sizes
+
+    return featurers, known_admission_models, known_eviction_models, models, common_models_mapping, sizes
 
 
 def check_statistics_config(filename, tabulation='', verbose=True):
@@ -772,14 +771,12 @@ def check_train_config(filename, tabulation='', verbose=True):
     return config
 
 
-def check_test_config(filename, tabulation='', verbose=True):
+def check_test_config(filename, tabulation='', verbose=True, load_only=False):
     names = [
         "data folder",
-        "cache size",
         "batch size",
         "seed",
         "period",
-        "algorithms",
         "reset",
         "alpha",
         "warmup"
@@ -788,9 +785,8 @@ def check_test_config(filename, tabulation='', verbose=True):
     intervals = [
         None,
         (1, None, (32, 102400)),
-        (1, None, (32, 40960)),
         None,
-        (0, None, (600, 3600)),
+        (0, None, (150, 3600)),
         None,
         None,
         None,
@@ -801,15 +797,11 @@ def check_test_config(filename, tabulation='', verbose=True):
              [int],
              [int],
              [int],
-             [int],
-             [dict],
              [bool],
-             [int],
+             [list],
              [int]]
 
     necessity = [True,
-                 True,
-                 True,
                  True,
                  True,
                  True,
@@ -831,6 +823,9 @@ def check_test_config(filename, tabulation='', verbose=True):
         print tabulation, error_levels[0], "Error during loading", filename
         return None
 
+    if load_only:
+        return config
+
     config = check_fiends(config, names, types, necessity, tabulation, verbose)
     if config is None:
         return config
@@ -842,14 +837,38 @@ def check_test_config(filename, tabulation='', verbose=True):
     if config is None:
         return None
 
+    if 'algorithms' not in config.keys():
+        if 'generic_names' not in config.keys():
+            return None
+        algorithms = {}
+        multiplier_min = config['generic_sizes_low']
+        step = config['generic_step']
+        multiplier_max = int(multiplier_min * (step ** (config['generic_max'])))
+        multiplier_average = int(multiplier_min * (step ** (config['generic_max'] / 2)))
+        config['max_c'] = multiplier_max
+        config['min_c'] = multiplier_min
+        config['avg_c'] = multiplier_average
+        config['generic'] = True
+        if 'generic checker' in config.keys():
+            for item in config['generic checker']:
+                size_to_use = int(item.split('-')[3])
+                algorithms[item] = [None, size_to_use]
+        for i in range(config['generic_max'] + 1):
+            finale = int(multiplier_min * (step ** i))
+            for j in range(len(config['generic_names'])):
+                name_formatted = config['generic_names'][j] + '-' + str(finale)
+                name_data = [config['generic_models'], finale]
+                algorithms[name_formatted] = name_data
+        config['algorithms'] = algorithms
+    else:
+        config['generic'] = False
     response = load_caching_algorithms(config['algorithms'], tabulation, verbose)
     if response is None:
         return None
     else:
-        featurers, statistics, admission, eviction, models, common_models, sizes = response
+        featurers, admission, eviction, models, common_models, sizes = response
 
     config['featurers'] = featurers
-    config['statistics'] = statistics
     config['admission'] = admission
     config['eviction'] = eviction
     config['models'] = models
