@@ -1,0 +1,25 @@
+{
+	"data folder": "data/china_featured",
+
+	"output_folder": "tests/GDSF/test_china",
+
+	"batch size": 4096,
+
+	"seed": 278,
+
+	"max time": 2,
+
+	"drop keys": true,
+
+	"generic_names": ["AL-GDSF-A", "SH-GDSF-S"],
+	"generic_models": null,
+	"generic_sizes_low": 512,
+	"generic_max": 7,
+	"generic_step": 2,
+
+	"period": 300,
+	"reset": true,
+	"alpha": [0, 1],
+
+    "warmup": 200000
+}

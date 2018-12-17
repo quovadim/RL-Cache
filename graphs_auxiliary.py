@@ -9,6 +9,7 @@ import pickle
 import matplotlib.dates as md
 import datetime as dt
 from hurry.filesize import size as hurry_fsize
+from environment_aux import parse_name
 
 
 header = ['size',
@@ -242,26 +243,6 @@ def get_stats(data_vector):
                          100 * np.percentile(data_vector, 95),
                          100 * np.percentile(data_vector, 99)]
     return dict(zip(statistics_names, statistics_vector))
-
-
-def parse_name(name):
-    name_splitted = name.split('-')
-    admission_type = name_splitted[0]
-    eviction_type = name_splitted[1]
-    operational_type = ''
-    operational_extended = ''
-    if admission_type == 'ML' or eviction_type == 'ML':
-        operational_type = name_splitted[2]
-        operational_extended = ' ' + operational_type
-    result = {
-        'admission': admission_type,
-        'eviction': eviction_type,
-        'operation': operational_type,
-        'size': hurry_fsize(int(name_splitted[3]) * 1024 * 1024),
-        'size_value': int(name_splitted[3]),
-        'simple_name': admission_type + ' ' + eviction_type + operational_extended
-    }
-    return result
 
 
 def build_graphs(graph_data, time_data, flow_data, alpha, keys, filename, title, extension):

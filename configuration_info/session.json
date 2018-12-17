@@ -1,0 +1,57 @@
+{
+  "collect discounted":  {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": true
+  },
+
+  "change":  {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": true
+  },
+
+  "change mode": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": "random"
+  },
+
+  "seed":  {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": 42
+  },
+
+  "initial gamma":  {
+    "interval": [0, 1],
+    "recommendation": [0, 1],
+    "required": false,
+    "default": 1
+  },
+
+  "gamma":  {
+    "interval": [0, 1],
+    "recommendation": [0, 0.1],
+    "required": false,
+    "default": 0.001
+  },
+
+  "alpha":  {
+    "interval": [0, 1],
+    "recommendation": [0, 1],
+    "required": false,
+    "default": 0
+  },
+
+  "use hr":  {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": true
+  }
+}

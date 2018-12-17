@@ -1,0 +1,98 @@
+{
+	"batch size": {
+		"interval": [0, null],
+		"recommendation": [32, 8192],
+		"required": false,
+		"default": 4096
+	},
+
+	"seed": {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": null
+	},
+
+	"max time": {
+		"interval": [1, null],
+		"recommendation": [12, 96],
+		"required": false,
+		"default": 48
+	},
+
+	"drop keys": {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": false
+	},
+
+	"algorithm type":  {
+		"interval": null,
+		"recommendation": null,
+		"required": true,
+		"default": null
+	},
+
+	"compare algorithms":  {
+		"interval": null,
+		"recommendation": null,
+		"required": true,
+		"default": null
+	},
+
+	"check size":  {
+		"interval": null,
+		"recommendation": null,
+		"required": true,
+		"default": null
+	},
+
+	"min size":  {
+		"interval": [0, null],
+		"recommendation": [512, null],
+		"required": false,
+		"default": 512
+	},
+
+	"max size":  {
+		"interval": [1, null],
+		"recommendation": null,
+		"required": false,
+		"default": 7
+	},
+	"step":  {
+		"interval": [1, null],
+		"recommendation": [2, 3],
+		"required": false,
+		"default": 2
+	},
+
+	"period":  {
+		"interval": [0, null],
+		"recommendation": [150, null],
+		"required": false,
+		"default": 300
+	},
+
+	"reset":  {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": true
+	},
+
+	"alpha":  {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": [0, 1]
+	},
+
+    "warmup":  {
+		"interval": [0, null],
+		"recommendation": [100000, null],
+		"required": false,
+		"default": 200000
+	}
+}

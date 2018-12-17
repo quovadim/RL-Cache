@@ -1,0 +1,16 @@
+{
+  "statistics": "auxiliary/china_statistics_full.npy",
+  "warmup": 1000000,
+  "split step": 10,
+
+  "normalization limit": 3,
+  "bias": 1,
+
+  "save": true,
+  "load": true,
+  "filename": "auxiliary/M0_intervals.npy",
+
+  "show stat": false,
+
+  "lambda": 0.99995394935
+}

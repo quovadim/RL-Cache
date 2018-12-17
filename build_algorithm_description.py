@@ -8,11 +8,12 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from graphs_auxiliary import smooth, build_graphs, build_percentiles, load_dataset
 from config_sanity import check_test_config
+from filestructure import *
 
 
 parser = argparse.ArgumentParser(description='Algorithm tester')
-parser.add_argument("config", type=str, help="data folder")
-parser.add_argument("output_folder", type=str, help="output folder")
+parser.add_argument("experiment", type=str, help="Experiment id")
+parser.add_argument("region", type=str, help="Region id")
 
 parser.add_argument("-f", "--filename", type=str, default='0', help="Output filename")
 
@@ -27,11 +28,13 @@ parser.add_argument('-p', '--percentiles', action='store_true', help="Build size
 
 args = parser.parse_args()
 
-configuration = check_test_config(args.config, verbose=False, load_only=True)
+configuration = check_test_config(args.experiment, args.region, verbose=False, load_only=True)
 if configuration is None:
     exit(-1)
 
 extension = args.extension
+
+output_folder = get_graphs_name(args.experiment, args.region)
 
 if args.remove:
     os.system('rm -rf ' + args.output_folder)
@@ -42,18 +45,16 @@ if not os.path.exists(args.output_folder):
 
 folder = configuration["output_folder"] + '/'
 
-keys_to_ignore = []
-if "generic checker" in configuration.keys():
-    keys_to_ignore += configuration["generic checker"]
+keys_to_ignore = configuration['classical keys']
+
+print 'Loading data...'
 
 graph_data, time_data, flow_data, alphas, names_info, statistics = load_dataset(folder,
                                                                                 args.filename,
                                                                                 args.skip,
                                                                                 keys_to_ignore)
 
-keys = graph_data.keys()
-
-print 'Loading data...'
+keys = [graph_data.keys() for key in graph_data.keys() if key not in keys_to_ignore]
 
 if args.percentiles:
     print 'Building percentiles'

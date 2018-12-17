@@ -1,5 +1,0 @@
-*.json
-!config_model.json
-!config_statistics.json
-!config_train_small.json
-!config_test_small.json

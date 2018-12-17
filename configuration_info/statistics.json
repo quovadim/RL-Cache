@@ -1,0 +1,64 @@
+{
+  "statistics": {
+    "interval": null,
+    "recommendation": null,
+    "required": true,
+    "default": null
+  },
+
+  "warmup": {
+    "interval": [0, null],
+    "recommendation": [100000, null],
+    "required": false,
+    "default": 1000000
+  },
+
+  "split step": {
+    "interval": [1, 1000],
+    "recommendation": [1, 15],
+    "required": false,
+    "default": 10
+  },
+
+  "normalization limit": {
+    "interval": [0, null],
+    "recommendation": [3, null],
+    "required": false,
+    "default": 3
+  },
+
+  "bias": {
+    "interval": null,
+    "recommendation": [0, 2],
+    "required": false,
+    "default": 1
+	},
+
+  "save": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": true
+  },
+
+  "load": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": true
+  },
+
+  "show stat": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": true
+  },
+
+  "lambda": {
+    "interval": [0, 1],
+    "recommendation": [0.9, 1],
+    "required": false,
+    "default": 0.999
+  }
+}

@@ -1,0 +1,217 @@
+{
+	"data":  {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": "china"
+	},
+
+	"cache size": {
+		"interval": [1, null],
+		"recommendation": [512, null],
+		"required": false,
+		"default": 1024
+	},
+
+	"target":  {
+		"interval": null,
+		"recommendation": null,
+		"required": true,
+		"default": null
+	},
+
+	"batch size": {
+		"interval": [0, null],
+		"recommendation": [32, 8192],
+		"required": false,
+		"default": 4096
+	},
+
+	"seed":  {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": 27
+	},
+
+	"session configuration":  {
+		"interval": null,
+		"recommendation": null,
+		"required": true,
+		"default": null
+	},
+
+	"samples":  {
+		"interval": [0, null],
+		"recommendation": [150, 150000],
+		"required": false,
+		"default": 150
+	},
+
+	"max samples":  {
+		"interval": [0, null],
+		"recommendation": [200, null],
+		"required": false,
+		"default": 200
+	},
+
+	"percentile admission":  {
+		"interval": [50, 100],
+		"recommendation": [50, 90],
+		"required": false,
+		"default": 85
+	},
+	"percentile eviction":  {
+		"interval": [50, 100],
+		"recommendation": [50, 90],
+		"required": false,
+		"default": 85
+	},
+
+	"epochs":   {
+		"interval": [0, null],
+		"recommendation": [1, 10],
+		"required": false,
+		"default": 1
+	},
+
+	"warmup":  {
+		"interval": [0, null],
+		"recommendation": [100000, null],
+		"required": false,
+		"default": 200000
+	},
+
+	"runs":  {
+		"interval": [1, null],
+		"recommendation": [10, 100],
+		"required": false,
+		"default": 20
+	},
+
+	"duplications":  {
+		"interval": [0, null],
+		"recommendation": [0, null],
+		"required": false,
+		"default": 10
+	},
+
+	"duplicate":   {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": false
+	},
+
+	"refresh period":  {
+		"interval": [0, null],
+		"recommendation": [3, null],
+		"required": false,
+		"default": 5
+	},
+
+	"repetitions":  {
+		"interval": [1, null],
+		"recommendation": [3, null],
+		"required": false,
+		"default": 5
+	},
+
+	"drop":   {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": false
+	},
+
+	"store period":  {
+		"interval": [0, null],
+		"recommendation": [1, null],
+		"required": false,
+		"default": 3
+	},
+
+	"overlap":  {
+		"interval": [0, null],
+		"recommendation": [100000, null],
+		"required": false,
+		"default": 180000
+	},
+
+	"period":  {
+		"interval": [0, null],
+		"recommendation": [100000, null],
+		"required": false,
+		"default": 200000
+	},
+
+	"refresh policy":   {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": "monotonic"
+	},
+
+	"refresh value":  {
+		"interval": [0, null],
+		"recommendation": [10, null],
+		"required": false,
+		"default": 20
+	},
+
+	"algorithms":   {
+		"interval": null,
+		"recommendation": null,
+		"required": true,
+		"default": null
+	},
+
+	"iterative":   {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": false
+	},
+
+	"start iteration":   {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": "E"
+	},
+
+	"IP:train admission":   {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": true
+	},
+
+	"IP:train eviction":   {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": true
+	},
+
+	"dump sessions":   {
+		"interval": null,
+		"recommendation": null,
+		"required": false,
+		"default": false
+	},
+
+	"dump limit":  {
+		"interval": [0, null],
+		"recommendation": [200, null],
+		"required": false,
+		"default": 200
+	},
+
+	"dump percentile":  {
+		"interval": [0, 100],
+		"recommendation": [0, 100],
+		"required": false,
+		"default": 75
+	}
+}

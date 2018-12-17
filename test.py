@@ -5,7 +5,8 @@ from GameEnvironment import test
 from config_sanity import check_test_config
 
 parser = argparse.ArgumentParser(description='Algorithm trainer')
-parser.add_argument("config", type=str, help="Configuration file for training")
+parser.add_argument("experiment", type=str, help="Name of the experiment")
+parser.add_argument("test", type=str, help="Name of the test")
 parser.add_argument('-g', '--gpu', action='store_true', help="Use GPU for computations")
 
 args = parser.parse_args()
@@ -15,11 +16,11 @@ if not args.gpu:
     os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-configuration = check_test_config(args.config, verbose=False)
+configuration = check_test_config(args.experiment, args.test, verbose=False)
 if configuration is None:
     exit(0)
 
-if not os.path.exists(configuration["output_folder"]):
-    os.makedirs(configuration["output_folder"])
+if not os.path.exists(configuration["output folder"]):
+    os.makedirs(configuration["output folder"])
 
-test(configuration, configuration["output_folder"] + '/0')
+test(configuration, configuration["output folder"] + '/0')

@@ -36,13 +36,15 @@ def grab_points(data, keys):
     for key in keys:
         seq_data[key] = []
     color_index = 1
+    local_shift = 0
     for run in data:
         for p, moment, perf_data in run:
-            time_moments.append(moment)
+            time_moments.append(moment + local_shift)
             coloring.append(color_index * 1.0 / len(data))
             for key in keys:
                 seq_data[key].append(perf_data[key])
         color_index += 1
+        local_shift += 1000
     return time_moments, seq_data, coloring
 
 
@@ -61,7 +63,7 @@ for line in data:
         runs.append(counter)
     counter += 1
 
-#runs.append(len(data))
+runs.append(len(data))
 
 runs_aggregated = []
 last_run = None
@@ -75,6 +77,6 @@ for i in range(1, len(runs)):
 time_moments_ml, seq_data_ml, coloring_ml = grab_points(runs_aggregated, ['ML-GDSF-DET'])
 time_moments_dt, seq_data_dt, coloring_dt = grab_points([last_run], ['AL-GDSF'])
 
-plt.scatter(time_moments_dt, seq_data_dt['AL-GDSF'], c='red', s=200, alpha=0.5)
-plt.scatter(time_moments_ml, seq_data_ml['ML-GDSF-DET'], c=coloring_ml, cmap='jet', s=100, alpha=0.5)
+plt.scatter(time_moments_dt, seq_data_dt['AL-GDSF'], c='black', alpha=0.5, lw=3)
+plt.scatter(time_moments_ml, seq_data_ml['ML-GDSF-DET'], c=coloring_ml, cmap='jet', alpha=0.8, lw=3)
 plt.show()

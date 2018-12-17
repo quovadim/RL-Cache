@@ -12,6 +12,7 @@ from os.path import isfile, join
 import sys
 import json
 from tqdm import tqdm
+from hurry.filesize import size as hurry_fsize
 
 
 def write_performance_to_log(log, data, iteration, prefix):
@@ -97,32 +98,68 @@ def copy_object(object_to_copy):
     return res
 
 
-def name_to_class(name):
+def class2name(class_info):
+    basic_name = [[class_info['admission']], [class_info['eviction']]]
+    if class_info['operational mode'] == '':
+        basic_name.append(['RNG', 'DET'])
+    else:
+        basic_name.append([class_info['operational mode']])
+    if class_info['size'] != 0:
+        basic_name.append([str(class_info['size'])])
+    if class_info['UID'] != '':
+        basic_name.append([class_info['UID']])
+    possible_names = basic_name[0]
+    for lst in basic_name[1:]:
+        possible_names = [[possible_name + '-' + next_item for possible_name in possible_names] for next_item in lst]
+        possible_names = sum(possible_names, [])
+    return possible_names
+
+
+def name2class(name):
     name = name.split('-')
     name_admission = name[0]
     name_eviction = name[1]
-    if len(name) > 2:
-        name_rng = name[2]
-        if name_rng != 'RNG' and name_rng != 'DET':
-            name_rng = None
-    else:
-        name_rng = None
+    operational_mode = ''
+    uid = ''
+    size = 0
+    if len(name) == 3:
+        try:
+            size = int(name[2])
+        except ValueError:
+            if name[2] in ['S', 'A', 'DET', 'RNG']:
+                operational_mode = name[2]
+            else:
+                uid = name[2]
+
+    if len(name) >= 4:
+        operational_mode = name[2]
+        try:
+            size = int(name[3])
+        except ValueError:
+            uid = name[3]
+
+    if len(name) == 5:
+        uid = name[4]
+
+    if len(name) > 5:
+        assert False
+
+    randomness_type = operational_mode == 'RNG'
+
     admission_random = False
     eviction_random = False
+
     class_type = None
     admission_index = -1
     eviction_index = -1
-    randomness_type = False
-    if name_rng is not None:
-        if name_rng == 'RNG':
-            randomness_type = True
-        if name_rng == 'DET':
-            randomness_type = False
+
     if name_admission == 'AL':
         admission_random = False
+        operational_mode = 'A'
         admission_index = 5
     if name_admission == 'SH':
         admission_random = False
+        operational_mode = 'S'
         admission_index = 2
     if name_admission == 'ML':
         admission_random = True
@@ -158,7 +195,25 @@ def name_to_class(name):
 
     assert class_type is not None
 
-    return class_type, admission_random, admission_index, eviction_random, eviction_index, randomness_type
+    short_name = name_admission + '-' + name_eviction
+    short_name_unique = name_admission + '-' + name_eviction
+    if uid != '':
+        short_name_unique += '-' + uid
+
+    return {'class': class_type,
+            'admission': name_admission,
+            'eviction': name_eviction,
+            'size': size,
+            'actual size': size * 1024 * 1024,
+            'admission mode': admission_random,
+            'admission index': admission_index,
+            'eviction mode': eviction_random,
+            'eviction index': eviction_index,
+            'random': randomness_type,
+            'operational mode': operational_mode,
+            'short name': short_name,
+            'unique short name': short_name_unique,
+            'UID': uid}
 
 
 def metric_funct(x, y, alpha):
@@ -282,20 +337,20 @@ def generate_data_for_models(feature_sets,
     operational_keys = []
     classical_keys = []
     for key in models_mapping.keys():
-        _, rng_adm, _, _, _, _ = name_to_class(key)
-        if not rng_adm:
+        class_info = name2class(key)
+        if class_info['eviction mode']:
             classical_keys.append(key)
         else:
             operational_keys.append(key)
     for key in classical_keys + operational_keys:
         a, e = models_mapping[key]
-        _, rng_adm, adm_index, _, _, eng_type = name_to_class(key)
-        adm_characteristics = str(a) + '|' + str(adm_index)
+        class_info = name2class(key)
+        adm_characteristics = str(a) + '|' + str(class_info['admission index'])
         nml_characteristics = 'A' + str(a)
-        if rng_adm:
+        if class_info['admission mode']:
             adm_characteristics += '|ML'
             nml_characteristics += '|ML'
-            if not eng_type:
+            if not class_info['random']:
                 adm_characteristics += '|AMAX'
             else:
                 adm_characteristics += '|SAMPLE' + str(cdk)
@@ -305,7 +360,7 @@ def generate_data_for_models(feature_sets,
             nml_characteristics += '|CLASSIC'
 
         if nml_characteristics not in nml_characteristics_seen:
-            if rng_adm:
+            if class_info['admission mode']:
                 admission_models_predictions.append(admission_models[a].predict(
                     feature_sets[a],
                     verbose=0,
@@ -318,8 +373,8 @@ def generate_data_for_models(feature_sets,
         if adm_characteristics not in seen:
             seen.append(adm_characteristics)
             predictions = generate_predictions(admission_data,
-                                               adm_index,
-                                               eng_type,
+                                               class_info['admission index'],
+                                               class_info['random'],
                                                True)
             predictions_adm.append(predictions)
 
@@ -335,21 +390,21 @@ def generate_data_for_models(feature_sets,
     operational_keys = []
     classical_keys = []
     for key in models_mapping.keys():
-        _, _, _, rng_evc, _, _ = name_to_class(key)
-        if not rng_evc:
+        class_info = name2class(key)
+        if not class_info['eviction mode']:
             classical_keys.append(key)
         else:
             operational_keys.append(key)
 
     for key in classical_keys + operational_keys:
         a, e = models_mapping[key]
-        _, _, _, rng_evc, evc_index, eng_type = name_to_class(key)
-        evc_characteristics = str(e) + '|' + str(evc_index)
+        class_info = name2class(key)
+        evc_characteristics = str(e) + '|' + str(class_info['eviction index'])
         nml_characteristics = 'E' + str(e)
-        if rng_evc:
+        if class_info['eviction mode']:
             evc_characteristics += '|ML'
             nml_characteristics += '|ML'
-            if not eng_type:
+            if not class_info['random']:
                 evc_characteristics += '|AMAX'
             else:
                 evc_characteristics += '|SAMPLE' + str(cdk)
@@ -359,7 +414,7 @@ def generate_data_for_models(feature_sets,
             nml_characteristics += '|CLASSIC'
 
         if nml_characteristics not in nml_characteristics_seen:
-            if rng_evc:
+            if class_info['eviction mode']:
                 eviction_models_predictions.append(eviction_models[e].predict(
                     feature_sets[e],
                     verbose=0,
@@ -373,8 +428,8 @@ def generate_data_for_models(feature_sets,
         if evc_characteristics not in seen:
             seen.append(evc_characteristics)
             predictions = generate_predictions(eviction_data,
-                                               evc_index,
-                                               eng_type,
+                                               class_info['eviction index'],
+                                               class_info['random'],
                                                False)
             predictions_evc.append(predictions)
         decisions_evc[key] = seen.index(evc_characteristics)
@@ -385,7 +440,6 @@ def generate_data_for_models(feature_sets,
 
 
 def generate_data_for_models_light(keys,
-                                   keys_info,
                                    classical_feature_set,
                                    ml_feature_set,
                                    adm_model,
@@ -397,39 +451,33 @@ def generate_data_for_models_light(keys,
     predictions_adm = None
     amax_adm = None
     amax_evc = None
-    classical_admission = [True] * len(classical_feature_set)
 
     for key in keys:
-        class_type, rng_adm, adm_index, rng_evc, evc_index, eng_type = keys_info[key]
-        if rng_adm:
+        class_info = name2class(key)
+        if class_info['admission mode']:
             if predictions_adm is None:
                 predictions_adm = adm_model.predict(ml_feature_set, verbose=0, batch_size=batch_size)
                 amax_adm = [bool(np.argmax(item) == 1) for item in predictions_adm]
-            assert eng_type is not None
-            if eng_type:
+            if class_info['random']:
                 decisions_adm[key] = [bool(item == 1) for item in sampling(predictions_adm)]
             else:
                 decisions_adm[key] = amax_adm
         else:
-            if adm_index < 0:
-                decisions_adm[key] = classical_admission
-            else:
-                decisions_adm[key] = [bool(item) for item in classical_feature_set[:, adm_index]]
+            decisions_adm[key] = [bool(item) for item in classical_feature_set[:, class_info['admission index']]]
 
-        if rng_evc:
+        if class_info['eviction mode']:
             if predictions_evc is None:
                 predictions_evc = evc_model.predict(ml_feature_set, verbose=0, batch_size=batch_size)
                 amax_evc = [compute_rating(np.argmax(item), predictions_evc.shape[1])
                             for item in predictions_evc]
-            assert eng_type is not None
-            if eng_type:
+            if class_info['random']:
                 decisions_evc[key] = [compute_rating(item, predictions_evc.shape[1])
                                       for item in sampling(predictions_evc)]
             else:
                 decisions_evc[key] = amax_evc
         else:
-            assert evc_index >= 0
-            decisions_evc[key] = classical_feature_set[:, evc_index]
+            assert class_info['eviction index'] >= 0
+            decisions_evc[key] = classical_feature_set[:, class_info['eviction index']]
     return decisions_adm, decisions_evc
 
 
@@ -527,7 +575,7 @@ def test_algorithms(algorithms,
             print_list_total = []
             values_print_alphas = [base_iteration + i + 1]
 
-            for alpha_value in alpha:
+            for alpha_value in [0]:
                 values = [min(99.99, 100 * metric(algorithms[alg], alpha_value)) for alg in keys_to_print]
                 best_performance = keys_to_print[values.index(max(values))]
                 worst_performance = keys_to_print[values.index(min(values))]
@@ -547,7 +595,7 @@ def test_algorithms(algorithms,
                 print_list_total += print_list
                 values_print_alphas += subst_vals
             print_string = '   '.join(print_list_total)
-            print_string = 'I \033[1m{:10d}\033[0m ' + print_string
+            print_string = 'I \033[1m{:d}\033[0m ' + print_string
             sys.stdout.write('\r' + print_string.format(*values_print_alphas))
             sys.stdout.flush()
 
@@ -595,7 +643,7 @@ def test_algorithms_light(algorithms,
                     else:
                         print_list.append('{:^' + str(len(name)) + 's} \033[1m{:6.2f}%\033[0m')
             print_string = ' | '.join(print_list)
-            print_string = 'Iteration \033[1m{:10d}\033[0m ' + print_string
+            print_string = 'I \033[1m{:d}\033[0m ' + print_string
             subst_vals = [base_iteration + i + 1]
             for i in range(len(names)):
                 subst_vals.append(names[i])

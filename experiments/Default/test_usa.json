@@ -1,0 +1,26 @@
+{
+	"data folder": "data/american_featured",
+
+	"output_folder": "tests/M0_test_usa",
+
+	"batch size": 4096,
+
+	"seed": 278,
+
+	"max time": 2,
+
+	"drop keys": true,
+
+	"generic checker": ["AL-LRU-BASELINE-2048", "SH-LRU-BASELINE-2048"],
+	"generic_names": ["ML-LRU-RNG", "ML-LRU-DET"],
+	"generic_models": ["configs/M0_model.json", "models/adm_M0", null],
+	"generic_sizes_low": 512,
+	"generic_max": 7,
+	"generic_step": 2,
+
+	"period": 300,
+	"reset": true,
+	"alpha": [0, 1],
+
+    "warmup": 200000
+}

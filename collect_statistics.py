@@ -16,4 +16,4 @@ filenames = [(join(filepath, f), int(f.replace('.csv', ''))) for f in listdir(fi
 filenames = sorted(filenames, key=lambda x: x[1])
 filenames = [item[0] for item in filenames]
 
-collect_features('auxiliary/' + args.filename, 1000 * args.iterations, filenames)
+collect_features('auxiliary/' + args.filename, 1000000 * args.iterations, filenames)

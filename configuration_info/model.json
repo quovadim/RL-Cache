@@ -1,0 +1,78 @@
+{
+  "wing size": {
+    "interval": [0, null],
+    "recommendation": [1, null],
+    "required": false,
+    "default": 3
+  },
+
+  "dropout rate": {
+    "interval": [0, 1],
+    "recommendation": [0, 0.5],
+    "required": false,
+    "default": 0.0
+  },
+
+  "use common": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": false
+  },
+
+  "multiplier common": {
+    "interval": [0, null],
+    "recommendation": [3, null],
+    "required": false,
+    "default": 3
+  },
+
+  "layers common": {
+    "interval": [0, null],
+    "recommendation": [3, null],
+    "required": false,
+    "default": 1
+  },
+
+  "multiplier each": {
+    "interval": [0, null],
+    "recommendation": [1, null],
+    "required": false,
+    "default": 10
+  },
+
+  "layers each": {
+    "interval": [0, null],
+    "recommendation": [1, null],
+    "required": false,
+    "default": 5
+  },
+
+  "use batch normalization": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": false
+  },
+
+  "eviction lr": {
+    "interval": [0, 1],
+    "recommendation": [1e-6, 1e-3],
+    "required": false,
+    "default": 1e-4
+  },
+
+  "admission lr": {
+    "interval": [0, 1],
+    "recommendation": [1e-6, 1e-3],
+    "required": false,
+    "default": 1e-4
+  },
+
+  "mc": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": false
+  }
+}

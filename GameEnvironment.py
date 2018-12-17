@@ -23,22 +23,21 @@ def test(config, o_file_generator):
     filenames = collect_filenames(config['data folder'])
 
     np.random.seed(config['seed'])
-    random.seed(config['seed'] + 1)
-    tf.set_random_seed(config['seed'] + 2)
+    random.seed(config['seed'])
+    tf.set_random_seed(config['seed'])
 
     featurers = config['featurers']
     admission_models = config['admission']
     eviction_models = config['eviction']
     models = config['models']
-    sizes = config['sizes']
 
     classes_names = config['algorithms'].keys()
 
     algorithms = {}
 
     for class_name in classes_names:
-        class_type, rng_adm, _, rng_evc, _, _ = name_to_class(class_name)
-        algorithms[class_name] = class_type(sizes[class_name])
+        class_info = name2class(class_name)
+        algorithms[class_name] = class_info['class'](class_info['actual size'])
 
     start_time = None
 
@@ -49,16 +48,15 @@ def test(config, o_file_generator):
     trace_beginning_time = None
     trace_collected_size = 0
 
-    max_time_diff = config["max time"] * 86400
-
-    generic = config['generic']
+    max_time_diff = config["max time"]
 
     real_start_time = int(real_time())
 
-    if generic:
-        keys_to_print = config['generic checker'] + ["ML-GDSF-RNG-1024", "ML-GDSF-DET-1024"]
-    else:
-        keys_to_print = []
+    keys_to_print = config['classical']
+    trainee_class = name2class(config['algorithm type'])
+    for c_size in config['check size']:
+        trainee_class['size'] = c_size
+        keys_to_print += class2name(trainee_class)
 
     for row in iterate_dataset(filenames):
 
@@ -136,7 +134,7 @@ def test(config, o_file_generator):
             needs_warmup = False
 
 
-def train(config, admission_path, eviction_path, load_admission, load_eviction, n_threads=10, verbose=False, show=True):
+def train(config, load_admission, load_eviction, n_threads=10, verbose=False, show=True):
     config_model = config['model']
     if config_model is None:
         return
@@ -148,23 +146,24 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
         config_model['mc'] = False
 
     real_start_time = int(real_time())
+    latest_start_time = int(real_time())
 
     monte_carlo = config_model['mc']
 
     np.random.seed(config['seed'])
-    random.seed(config['seed'] + 1)
-    tf.set_random_seed(config['seed'] + 2)
+    random.seed(config['seed'])
+    tf.set_random_seed(config['seed'])
 
     featurer = PacketFeaturer(config_statistics, verbose=False)
 
     model_admission, model_eviction, common_model, last_dim = create_models(config_model, featurer.dim)
 
     if load_eviction:
-        print 'Loading pretrained from', eviction_path
-        model_eviction.load_weights(eviction_path)
+        print 'Loading pretrained from', config["eviction path"]
+        model_eviction.load_weights(config["eviction path"])
     if load_admission:
-        print 'Loading pretrained from', admission_path
-        model_admission.load_weights(admission_path)
+        print 'Loading pretrained from', config["admission path"]
+        model_admission.load_weights(config["admission path"])
 
     filenames = collect_filenames(config['data folder'])
 
@@ -183,6 +182,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
     samples = config['samples']
     alpha = config['session configuration']['alpha']
     classes_names = config['algorithms']
+    special_keys = config['special keys']
 
     step = period - config['overlap']
     overlap = config['overlap']
@@ -203,15 +203,15 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
     if config['iterative']:
         runs *= 2
 
-    thread_seed = 2 * config['seed'] + 1
+    thread_seed = 1 if config['seed'] is None else config['seed']
 
     if common_model is not None and verbose:
         common_model.summary()
 
-    class_type, rng_adm, _, rng_evc, _, rng_type = name_to_class(config['target'])
-    if rng_adm and verbose:
+    class_info = name2class(config['target'])
+    if class_info['admission mode'] and verbose:
         model_admission.summary()
-    if rng_evc and verbose:
+    if class_info['eviction mode'] and verbose:
         model_eviction.summary()
 
     iteration = 0
@@ -226,12 +226,10 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
     if 'train history' in config.keys():
         if verbose:
             print '\033[91mLOG AT', config['train history'], '\033[0m'
-        config['train history'] = open(config['train history'], 'a')
+        config['train history'] = open(config['train history'], 'w')
         logging = True
 
-    duplicate = False
-    if 'duplicate' in config.keys():
-        duplicate = config['duplicate']
+    duplicate = config['duplicate']
 
     while iteration <= runs:
         if not duplicate and iteration > runs:
@@ -274,7 +272,11 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
             insertion = [hurry_fsize(cache_size), runs - iteration, period, samples,
                          config['session configuration']['seed'], step]
 
-        print print_string.format(*insertion), 'Time spent\033[1m', to_ts(int(real_time()) - real_start_time), '\033[0m'
+        print print_string.format(*insertion), \
+            'Time spent\033[1m', to_ts(int(real_time()) - real_start_time), '\033[0m', \
+            'Spent for last step\033[1m', to_ts(int(real_time()) - latest_start_time), '\033[0m'
+
+        latest_start_time = int(real_time())
 
         print '\033[93m' + ''.join(['-'] * 180) + '\033[0m'
 
@@ -292,32 +294,30 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
         current_rows = []
 
-        classes_names.append(config['target'] + '-DET')
-        classes_names.append(config['target'] + '-RNG')
-        special_keys = [config['target'] + '-DET', config['target'] + '-RNG']
         algorithms = {}
-        algorithms_data = {}
 
         algorithm_rng = None
         algorithm_det = None
+
+        algorithm_rng_key = ''
+        algorithm_det_key = ''
 
         eviction_classical = True
         admission_classical = True
 
         for class_name in classes_names:
-            class_type, rng_adm, _, rng_evc, _, rng_type = name_to_class(class_name)
-            if rng_adm or rng_evc:
-                if rng_type:
-                    eviction_classical = not rng_evc
-                    admission_classical = not rng_adm
-                    algorithm_rng = class_type(cache_size)
-                    algorithms[class_name] = algorithm_rng
+            class_info = name2class(class_name)
+            cache_object = class_info['class'](class_info['actual size'])
+            if class_info['admission mode'] or class_info['eviction mode']:
+                eviction_classical = not class_info['eviction mode']
+                admission_classical = not class_info['admission mode']
+                if class_info['random']:
+                    algorithm_rng = cache_object
+                    algorithm_rng_key = class_name
                 else:
-                    algorithm_det = class_type(cache_size)
-                    algorithms[class_name] = algorithm_det
-            else:
-                algorithms[class_name] = class_type(cache_size)
-            algorithms_data[class_name] = name_to_class(class_name)
+                    algorithm_det = cache_object
+                    algorithm_det_key = class_name
+            algorithms[class_name] = cache_object
 
         assert algorithm_rng is not None and algorithm_det is not None
 
@@ -409,7 +409,6 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
 
             decisions_adm, decisions_evc = generate_data_for_models_light(
                 algorithms.keys(),
-                algorithms_data,
                 classical_features,
                 ml_features,
                 model_admission,
@@ -513,7 +512,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                                                                         batch_size=batch_size,
                                                                         verbose=0)
                 else:
-                    predictions_admission = decisions_adm[config['target'] + '-RNG']
+                    predictions_admission = decisions_adm[algorithm_rng_key]
 
                 if not eviction_classical:
                     if local_train_eviction or repetition == 0:
@@ -521,7 +520,7 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                                                                       batch_size=batch_size,
                                                                       verbose=0)
                 else:
-                    predictions_eviction = decisions_evc[config['target'] + '-RNG']
+                    predictions_eviction = decisions_evc[algorithm_rng_key]
 
                 if repetitions > 1 and (verbose or show):
                     print 'Repetition\033[1m', repetition + 1, '\033[0mout of\033[1m', repetitions, '\033[0m'
@@ -582,19 +581,19 @@ def train(config, admission_path, eviction_path, load_admission, load_eviction, 
                     a = train_model(percentile_admission, model_admission, rewards_adm, states_adm, actions_adm,
                                     predictions_admission, ml_features, s_actions_adm, epochs, batch_size,
                                     config['max samples'], 'Admission', monte_carlo, verbose)
-                    model_admission.save_weights(admission_path)
+                    model_admission.save_weights(config["eviction path"])
 
                 if local_train_eviction:
                     e = train_model(percentile_eviction, model_eviction, rewards_evc, states_evc, actions_evc,
                                     predictions_eviction, ml_features, s_actions_evc, epochs, batch_size,
                                     config['max samples'], 'Eviction', monte_carlo, verbose)
-                    model_eviction.save_weights(eviction_path)
+                    model_eviction.save_weights(config["admission path"])
 
                 if logging:
                     write_accuracy_to_log(config['train history'], a, e, step, repetition)
 
                 if logging or verbose or repetition == repetitions - 1:
-                    decisions_adm, decisions_evc = generate_data_for_models_light(algorithms.keys(), algorithms_data,
+                    decisions_adm, decisions_evc = generate_data_for_models_light(algorithms.keys(),
                                                                                   classical_features, ml_features,
                                                                                   model_admission, model_eviction,
                                                                                   batch_size)

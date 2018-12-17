@@ -50,6 +50,11 @@ statistics = {}
 
 mlength = None
 
+max_size = 16 * 1024
+min_size = 0
+
+print 'Loading data...'
+
 for config in configs:
     configuration = check_test_config(config, verbose=False, load_only=True)
     if configuration is None:
@@ -96,7 +101,14 @@ for config in configs:
 
 keys = graph_data.keys()
 
-print 'Loading data...'
+keys_rebuilt = [key for key in keys if
+                names_info[key]['size_value'] > max_size or names_info[key]['size_value'] < min_size]
+for key in keys_rebuilt:
+    del graph_data[key]
+    del statistics[key]
+    del names_info[key]
+
+keys = graph_data.keys()
 
 if args.percentiles:
     print 'Building percentiles'
