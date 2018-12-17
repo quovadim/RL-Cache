@@ -1,8 +1,8 @@
 import argparse
 import os
 
-from GameEnvironment import test
-from config_sanity import check_test_config
+from environment.environment import test
+from configuration_info.config_sanity import check_test_config
 
 parser = argparse.ArgumentParser(description='Algorithm trainer')
 parser.add_argument("experiment", type=str, help="Name of the experiment")

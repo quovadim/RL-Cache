@@ -1,9 +1,8 @@
 import argparse
 import os
-import json
 
-from GameEnvironment import train
-from config_sanity import check_train_config
+from environment.environment import train
+from configuration_info.config_sanity import check_train_config
 
 parser = argparse.ArgumentParser(description='Algorithm trainer')
 parser.add_argument("experiment", type=str, help="Name of the experiment")
