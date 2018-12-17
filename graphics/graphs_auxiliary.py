@@ -8,7 +8,7 @@ import pickle
 import matplotlib.dates as md
 import datetime as dt
 from hurry.filesize import size as hurry_fsize
-from environment.environment_aux import parse_name
+from environment.environment_aux import name2class
 
 
 header = ['size',
@@ -217,7 +217,7 @@ def load_dataset(folder, filename, skip, keys_to_ignore, max_length=None):
 
     names_info = {}
     for key in keys:
-        names_info[key] = parse_name(key)
+        names_info[key] = name2class(key)
 
     print '...Done'
     statistics = {}
@@ -255,7 +255,7 @@ def build_graphs(graph_data, time_data, flow_data, alpha, keys, filename, title,
 
     for key in keys:
         data_selected = 100 * np.asarray(graph_data[key][alpha])
-        ax.plot(accumulated_time, data_selected, label=parse_name(key)['simple_name'])
+        ax.plot(accumulated_time, data_selected, label=name2class(key)['simple name'])
 
     ax2 = ax.twinx()
     ax2.xaxis.set_major_formatter(xfmt)
@@ -274,7 +274,7 @@ def build_graphs(graph_data, time_data, flow_data, alpha, keys, filename, title,
 
 
 def build_barchart(names_info, statistics, keys, alpha, target_name, filename, extension):
-    sizes = list(enumerate(set([names_info[key]['size_value'] for key in keys])))
+    sizes = list(enumerate(set([names_info[key]['size value'] for key in keys])))
     assert len(sizes) != 0
     sizes = sorted(sizes, key=lambda x: x[1])
     order, sizes = zip(*sizes)
@@ -284,8 +284,8 @@ def build_barchart(names_info, statistics, keys, alpha, target_name, filename, e
     for i in order:
         size = sizes[i]
 
-        keys_simplified = sorted([names_info[key]['simple_name'] for key in
-                                  keys if names_info[key]['size_value'] == size])
+        keys_simplified = sorted([names_info[key]['simple name'] for key in
+                                  keys if names_info[key]['size value'] == size])
 
         assert len(keys_simplified) == len(set(keys_simplified))
 
