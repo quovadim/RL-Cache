@@ -1,5 +1,5 @@
 {
-  "statistics": "auxiliary/features_primary.npy",
+  "statistics": "statistics/china_statistics_15M",
   "warmup": 1000000,
   "split step": 10,
 
@@ -8,7 +8,6 @@
 
   "save": true,
   "load": true,
-  "filename": "experiments/Q/intervals",
 
   "show stat": false,
 

@@ -14,8 +14,6 @@
   "eviction lr": 1e-4,
   "admission lr": 1e-4,
 
-  "mc": false,
-
-  "statistics": "experiments/Q/statistics.json"
+  "mc": false
 
 }
