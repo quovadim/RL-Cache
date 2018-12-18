@@ -9,7 +9,8 @@ def iterate_dataset(filepath):
     filelist = sorted([filepath + f for f in listdir(filepath) if isfile(join(filepath, f)) and '.out' in f])
     for filename in sorted(filelist):
         print 'Total {:d} using file'.format(len(filelist)), filename
-        local_frame = pd.read_csv(filename, index_col=False, delimiter=' ', names=['timestamp', 'id', 'size', 'response'])
+        local_frame = pd.read_csv(filename, index_col=False, delimiter=' ', names=['timestamp', 'id', 'size',
+                                                                                   'response'])
         yield local_frame
 
 
@@ -21,6 +22,8 @@ args = parser.parse_args()
 
 if not os.path.exists(args.output_path):
     os.makedirs(args.output_path)
+
+print 'remaking', args.data_path, 'into', args.output_path
 
 start_series = None
 for frame in iterate_dataset(args.data_path):

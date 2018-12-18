@@ -1,4 +1,4 @@
-from feature.extractor import PacketFeaturer
+from feature.extractor import PacketFeaturer, iterate_dataset
 
 from environment_aux import *
 from model import *

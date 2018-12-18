@@ -1,13 +1,31 @@
-from environment.environment_aux import *
 from collections import deque
 
+import sys
 import numpy as np
 from tqdm import tqdm
+import pickle
+
+feature_extractors = {
+    'log size': lambda x: np.log(1 + float(x['size'])),
+    'log frequency': lambda x: np.log(1 + float(x['size'])),
+    'gdsf': lambda x: np.log(1 + float(x['size'])),
+    'number_of_observations': lambda x: np.log(1 + float(x['size'])),
+    'size': lambda x: np.log(1 + float(x['size'])),
+    'recency': lambda x: np.log(1 + float(x['size'])),
+    'exponential recency': lambda x: np.log(1 + float(x['size'])),
+    'log gdsf': lambda x: np.log(1 + float(x['size'])),
+    'log bhr': lambda x: np.log(1 + float(x['size'])),
+    'log time recency': lambda x: np.log(1 + float(x['size'])),
+    'log request recency': lambda x: np.log(1 + float(x['size'])),
+    'log exp time recency': lambda x: np.log(1 + float(x['size'])),
+    'log exp request recency': lambda x: np.log(1 + float(x['size']))
+}
+
 
 feature_names = ['log size',
                  'log frequency',
                  #'gdsf',
-                 #'frequency',
+                 #'number_of_observations',
                  #'size',
                  #'recency',
                  #'exponential recency',
@@ -17,6 +35,20 @@ feature_names = ['log size',
                  'log request recency',
                  'log exp time recency',
                  'log exp request recency']
+
+
+def iterate_dataset(filenames):
+    for fname in filenames:
+        names = PacketFeaturer.feature_names
+        types = PacketFeaturer.feature_types
+        hdlr = open(fname, 'r')
+
+        for line in hdlr:
+            lines_converted = line.split(' ')
+            lines_converted = [types[i](lines_converted[i]) for i in range(len(lines_converted))]
+            yield dict(zip(names[:len(lines_converted)], lines_converted))
+
+        hdlr.close()
 
 
 def collect_features(output_filename, t_max, filenames):
@@ -82,6 +114,11 @@ def print_statistics(statistics):
 
 
 class PacketFeaturer:
+
+    feature_names = ['timestamp', 'id', 'size', 'number_of_observations', 'last_appearance',
+                     'exponential_recency', 'logical_time', 'exponential_logical_time', 'entropy', 'future']
+    feature_types = [int, int, int, int, int, int, float, float, float, float]
+
     def __init__(self, config, verbose=True):
         self.logical_time = 0
         self.real_time = 0
@@ -92,9 +129,7 @@ class PacketFeaturer:
         self.preserved_memory_vector = 0
 
         self.verbose = verbose
-        names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app',
-                 'exp_recency', 'log_time', 'exp_log', 'entropy', 'future']
-        self.fake_request = dict(zip(names, [1] * len(names)))
+        self.fake_request = dict(zip(PacketFeaturer.feature_names[:8], [1] * len(PacketFeaturer.feature_names)))
         self.fnum = len(self.get_pure_features(self.fake_request))
         self.statistics = []
         self.bias = 0
@@ -230,26 +265,27 @@ class PacketFeaturer:
 
         feature_vector.append(np.log(1 + float(packet['size'])))
 
-        feature_vector.append(-np.log(1e-4 + float(packet['frequency']) / (1 + self.logical_time)))
+        feature_vector.append(
+            -np.log(1e-4 + float(packet['number_of_observations']) / (1 + self.logical_time)))
 
-        #feature_vector.append(float(packet['frequency']) / float(packet['size']))
+        #feature_vector.append(float(packet['number_of_observations']) / float(packet['size']))
 
-        #feature_vector.append(float(packet['frequency']) / (1 + self.logical_time))
+        #feature_vector.append(float(packet['number_of_observations']) / (1 + self.logical_time))
 
         #feature_vector.append(float(packet['size']))
 
-        #feature_vector.append(self.real_time - packet['lasp_app'])
+        #feature_vector.append(self.real_time - packet['last_appearance'])
 
-        #feature_vector.append(float(packet['exp_recency']))
+        #feature_vector.append(float(packet['exponential_recency']))
 
         feature_vector.append(-1 * feature_vector[1] - feature_vector[0])
 
         feature_vector.append(-1 * feature_vector[1] + feature_vector[0])
 
-        feature_vector.append(np.log(2 + float(self.real_time - packet['lasp_app'])))
-        feature_vector.append(np.log(2 + float(self.logical_time - packet['log_time'])))
-        feature_vector.append(np.log(2 + float(packet['exp_recency'])))
-        feature_vector.append(np.log(2 + float(packet['exp_log'])))
+        feature_vector.append(np.log(2 + float(self.real_time - packet['last_appearance'])))
+        feature_vector.append(np.log(2 + float(self.logical_time - packet['exponential_recency'])))
+        feature_vector.append(np.log(2 + float(packet['exponential_recency'])))
+        feature_vector.append(np.log(2 + float(packet['logical_time'])))
 
         features = np.asarray(feature_vector)
         return features
@@ -294,11 +330,12 @@ class PacketFeaturer:
         return np.asarray(feature_matrix)
 
     def get_static_features(self, packet):
-        feature_vector = [float(packet['frequency']) / (float(packet['size'])),
+        feature_vector = [float(packet['number_of_observations']) / (float(packet['size'])),
                           self.logical_time,
-                          packet['frequency'] != 1,
-                          float(packet['frequency']) * (float(packet['size']) / (1 + self.logical_time)),
-                          float(packet['frequency']) / (1 + self.logical_time),
+                          packet['number_of_observations'] != 1,
+                          float(packet['number_of_observations']) *
+                          (float(packet['size']) / (1 + self.logical_time)),
+                          float(packet['number_of_observations']) / (1 + self.logical_time),
                           True]
 
         return np.asarray(feature_vector)

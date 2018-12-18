@@ -1,7 +1,7 @@
 {
 	"data": "china",
 
-	"cache size": 32,
+	"cache size": 1024,
 
 	"target": "ML-GDSF",
 
@@ -29,7 +29,7 @@
 	"percentile eviction": 90,
 
 	"epochs": 1,
-	"warmup": 60000,
+	"warmup": 200000,
 	"runs": 30,
 	"duplications": 1,
 	"duplicate": false,
@@ -37,8 +37,8 @@
 	"repetitions": 3,
 	"drop": false,
 	"store period": 3,
-	"overlap": 58000,
-	"period": 60000,
+	"overlap": 125000,
+	"period": 150000,
 
 	"refresh policy": "monotonic",
 	"refresh value": 0,

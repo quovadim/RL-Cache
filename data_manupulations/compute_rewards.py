@@ -1,10 +1,11 @@
-import pandas as pd
 from os import listdir
 from os.path import isfile, join
+import os
 import argparse
 from collections import deque
 from tqdm import tqdm
 import sys
+from feature.extractor import PacketFeaturer
 
 
 def iterate_dataset(filepath):
@@ -12,10 +13,9 @@ def iterate_dataset(filepath):
                  if isfile(join(filepath, f)) and '.csv' in f and 'lock' not in f]
     filenames = sorted(filenames, key=lambda x: x[1])
     filenames = [item[0] for item in filenames]
-    for fname in reversed(filenames[:10]):
-        names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'log_time',
-                 'exp_recency', 'exp_log']
-        types = [int, int, int, int, int, int, float, float]
+    for fname in reversed(filenames):
+        names = PacketFeaturer.feature_names
+        types = PacketFeaturer.feature_types
         hdlr = open(fname, 'r').readlines()
 
         for line in reversed(hdlr):
@@ -28,10 +28,13 @@ def iterate_dataset(filepath):
 
 parser = argparse.ArgumentParser(description='Collect future data')
 parser.add_argument('-r', "--region", type=str, default='china', help="Data region")
-#parser.add_argument("data_path", type=str, help="Path to the source data")
-#parser.add_argument("output_path", type=str, help="Path to source csv")
+parser.add_argument("data_path", type=str, help="Path to the source data")
+parser.add_argument("output_path", type=str, help="Path to source csv")
 
 args = parser.parse_args()
+
+if not os.path.exists(args.output_path):
+    os.makedirs(args.output_path)
 
 lookup_period = 300000
 
@@ -43,7 +46,7 @@ computed_ratings_and_time = {}
 
 save_time = None
 
-forget_lambda = 0.01 ** (1.0/100000)
+forget_lambda = 0.01 ** (1.0/lookup_period)
 
 print 'Gamma', forget_lambda
 
@@ -61,8 +64,14 @@ for go, row in iterate_dataset('data/' + region + '_featured/'):
         ofname = open('data/' + region + '_rewarded/' + row, 'w')
         print ''
         for lrow, reward in tqdm(reversed(history), total=len(history)):
-            data = [lrow['timestamp'], lrow['id'], lrow['size'], lrow['frequency'], lrow['lasp_app'], lrow['log_time'],
-                    lrow['exp_recency'], lrow['exp_log'], reward]
+            data = [lrow['timestamp'],
+                    lrow['id'],
+                    lrow['size'],
+                    lrow['number_of_observations'],
+                    lrow['last_appearance'],
+                    lrow['logical_time'],
+                    lrow['exponential_recency'],
+                    lrow['exponential_logical_time'], reward]
             data = [str(item) for item in data]
             ofname.write(' '.join(data) + '\n')
         ofname.close()

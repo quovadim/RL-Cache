@@ -1,0 +1,24 @@
+caching:
+	$(MAKE) -C caching_classes all
+	$(MAKE) -C caching_classes copy
+
+caching_clean:
+	rm *.so
+	rm *.o
+	$(MAKE) -C caching_classes clean
+
+
+
+collector:	
+	$(MAKE) -C feature_collector all
+
+collector_clean:
+	$(MAKE) -C feature_collector clean
+	
+all:
+	make caching
+	make collector
+
+clean:
+	make caching_clean
+	make collector_clean

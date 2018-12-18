@@ -13,6 +13,7 @@ import sys
 import json
 from tqdm import tqdm
 from hurry.filesize import size as hurry_fsize
+from feature.extractor import iterate_dataset
 
 
 def write_performance_to_log(log, data, iteration, prefix):
@@ -916,21 +917,6 @@ def generate_session_continious(
     assert algorithm_template.get_ratings() == ratings
 
     return lstates, np.asarray(lactions), lstates_adm, np.asarray(lactions_adm), eviction_rating, admission_rating
-
-
-def iterate_dataset(filenames):
-    for fname in filenames:
-        names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'log_time',
-                'exp_recency', 'exp_log', 'entropy', 'future']
-        types = [int, int, int, int, int, int, float, float, float, float]
-        hdlr = open(fname, 'r')
-
-        for line in hdlr:
-            lines_converted = line.split(' ')
-            lines_converted = [types[i](lines_converted[i]) for i in range(len(lines_converted))]
-            yield dict(zip(names[:len(lines_converted)], lines_converted))
-
-        hdlr.close()
 
 
 def split_feature(feature, perc_steps):
