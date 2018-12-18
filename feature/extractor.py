@@ -15,7 +15,8 @@ def iterate_dataset(filenames):
         for line in hdlr:
             lines_converted = line.split(' ')
             lines_converted = [types[i](lines_converted[i]) for i in range(len(lines_converted))]
-            yield dict(zip(names[:len(lines_converted)], lines_converted))
+            lines_converted += [0] * len(names[len(lines_converted):])
+            yield dict(zip(names, lines_converted))
 
         hdlr.close()
 
@@ -107,7 +108,7 @@ class PacketFeaturer:
         'log request recency': lambda x, l, r: np.log(2 + float(l - x['logical_time'])),
         'log exp time recency': lambda x, l, r: np.log(2 + float(x['exponential_recency'])),
         'log exp request recency': lambda x, l, r: np.log(2 + float(x['exponential_logical_time'])),
-        'entropy': lambda x, l, r: 0 if 'entropy' not in x.keys() else x['entropy'],
+        'entropy': lambda x, l, r: x['entropy'],
         'gdsf': lambda x, l, r: x['number_of_observations'] / (1 + l)(x, l, r) / x['size'],
         'frequency': lambda x, l, r: x['number_of_observations'] / (1 + l),
         'number_of_observations': lambda x, l, r: x['number_of_observations'],

@@ -725,7 +725,7 @@ def test_algorithms_light(algorithms,
                     else:
                         print_list.append('{:s} \033[1m{:6.2f}%\033[0m')
             print_string = ' | '.join(print_list)
-            print_string = 'I \033[1m{:d}\033[0m ' + print_string
+            print_string = 'I \033[1m{:10d}\033[0m ' + print_string
             subst_vals = [base_iteration + i + 1]
             for i in range(len(keys)):
                 subst_vals.append(name_mapping[keys[i]])
