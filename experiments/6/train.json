@@ -1,9 +1,9 @@
 {
-	"data": "usa",
+	"data": "china",
 
 	"cache size": 32,
 
-	"target": "ML-LRU",
+	"target": "ML-GDSF",
 
 	"batch size": 4096,
 
@@ -17,7 +17,7 @@
 		"seed": 45,
 		"initial gamma": 1.0,
 		"gamma": 0.01,
-		"alpha": 1,
+		"alpha": 0,
 		"use hr": true,
 		"metric type": "correlated"
 	},
@@ -30,8 +30,8 @@
 
 	"epochs": 1,
 	"warmup": 20000,
-	"runs": 20,
-	"duplications": 20,
+	"runs": 30,
+	"duplications": 1,
 	"duplicate": false,
 	"refresh period": 5,
 	"repetitions": 3,

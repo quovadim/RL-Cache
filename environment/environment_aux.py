@@ -199,6 +199,13 @@ def name2class(name):
     if uid != '':
         short_name_unique += '-' + uid
 
+    unsized_name_suffix = ''
+
+    if operational_mode != '':
+        unsized_name_suffix = '-' + operational_mode
+    if uid != '':
+        unsized_name_suffix += '-' + uid
+
     return {'class': class_type,
             'admission': name_admission,
             'eviction': name_eviction,
@@ -213,6 +220,7 @@ def name2class(name):
             'random': randomness_type,
             'operational mode': operational_mode,
             'short name': short_name,
+            'unsized name': short_name + unsized_name_suffix,
             'unique short name': short_name_unique,
             'UID': uid}
 
@@ -226,7 +234,7 @@ def resolve_field(names, field, avoid_value):
                 new_name = name + '-' + str(info[field])
             else:
                 new_name = name
-            if new_name not in names.keys():
+            if new_name not in modes_resolved.keys():
                 modes_resolved[new_name] = []
             modes_resolved[new_name].append(conflict_name)
     return modes_resolved
@@ -251,7 +259,7 @@ def compress_names(names):
             conflicting_names[info['short name']] = []
         conflicting_names[info['short name']].append(name)
     to_resolve = [(True, 'operational mode', ''),
-                  #(False, 'text size', '0B'),
+                  (False, 'text size', '0B'),
                   (True, 'size', 0),
                   (True, 'UID', '')]
     conflicting_names, name_mapping = clean_names(conflicting_names, name_mapping)
@@ -260,7 +268,7 @@ def compress_names(names):
         conflicting_names_modified, name_mapping_modified = clean_names(conflicting_names_modified, name_mapping)
         if len(conflicting_names_modified.keys()) == 0:
             return name_mapping_modified
-        if renew:
+        if renew and len(conflicting_names_modified.keys()) > len(conflicting_names.keys()):
             conflicting_names, name_mapping = conflicting_names_modified, name_mapping_modified
     assert False
 
@@ -276,10 +284,10 @@ def extreme_compress(name):
                          'RNG': 'R',
                          'DET': 'D'}
     name_converted = [replacement_table[info['admission']], replacement_table[info['eviction']]]
-    if info['operational mode']:
+    if info['operational mode'] != '':
         name_converted.append(replacement_table[info['operational mode']])
     if info['size'] != 0:
-        name_converted.append(hurry_fsize(info['actual size']))
+        name_converted.append(info['text size'])
     if info['UID'] != '':
         name_converted.append(info['UID'])
     return ''.join(name_converted)
@@ -616,7 +624,7 @@ def test_algorithms(algorithms,
     total_size = sum([row['size'] for row in rows])
     total_time = rows[len(rows) - 1]['timestamp'] - rows[0]['timestamp']
 
-    history = {'time': [], 'flow': 0, 'alphas': alpha}
+    history = {'time': [], 'flow': 0, 'alphas': alpha, 'iterations': len(rows)}
     keys = sorted(algorithms.keys())
 
     if keys_to_print is None:
@@ -630,7 +638,7 @@ def test_algorithms(algorithms,
         history[key] = []
 
     for i in range(len(rows)):
-        for alg in algorithms.keys():
+        for alg in keys:
             algorithms[alg].decide(rows[i],
                                    predictions_evc[decisions_evc[alg]][i],
                                    predictions_adm[decisions_adm[alg]][i])
@@ -638,8 +646,8 @@ def test_algorithms(algorithms,
         if output_file is not None and i == len(rows) - 1:
             history['flow'] = float(total_size) / (1e-4 + float(total_time))
             history['time'].append(rows[i]['timestamp'])
-            for key in algorithms.keys():
-                data_value = [metric(algorithms[key], alpha_value) for alpha_value in alpha]
+            for key in keys:
+                data_value = [metric(algorithms[key], alpha_value) for alpha_value in sorted(alpha)]
                 history[key].append(data_value)
 
         if verbose and i % 100 == 0 or i == len(rows) - 1:
@@ -833,7 +841,7 @@ def generate_session_continious(
 
     for i in range(len(rows)):
 
-        if decorrelated_metric or (config['collect discounted'] and (exchanged or full_step)):
+        if decorrelated_metric or (config['collect discounted'] and exchanged) or full_step:
             multiplier *= gamma
 
         hit = algorithm.decide(rows[i], eviction_decisions[i], admission_decisions[i])
@@ -913,14 +921,14 @@ def generate_session_continious(
 def iterate_dataset(filenames):
     for fname in filenames:
         names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'log_time',
-                'exp_recency', 'exp_log']#, 'future']
-        types = [int, int, int, int, int, int, float, float]#, float]
+                'exp_recency', 'exp_log', 'entropy', 'future']
+        types = [int, int, int, int, int, int, float, float, float, float]
         hdlr = open(fname, 'r')
 
         for line in hdlr:
             lines_converted = line.split(' ')
-            lines_converted = [types[i](lines_converted[i]) for i in range(len(types))]
-            yield dict(zip(names, lines_converted))
+            lines_converted = [types[i](lines_converted[i]) for i in range(len(lines_converted))]
+            yield dict(zip(names[:len(lines_converted)], lines_converted))
 
         hdlr.close()
 

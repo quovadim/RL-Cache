@@ -92,7 +92,8 @@ class PacketFeaturer:
         self.preserved_memory_vector = 0
 
         self.verbose = verbose
-        names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app', 'exp_recency', 'log_time', 'exp_log']
+        names = ['timestamp', 'id', 'size', 'frequency', 'lasp_app',
+                 'exp_recency', 'log_time', 'exp_log', 'entropy', 'future']
         self.fake_request = dict(zip(names, [1] * len(names)))
         self.fnum = len(self.get_pure_features(self.fake_request))
         self.statistics = []

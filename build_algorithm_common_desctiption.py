@@ -5,13 +5,17 @@ import numpy as np
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+os.environ["CUDA_VISIBLE_DEVICES"]="-1"
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 from graphs_auxiliary import smooth, build_graphs, build_percentiles, load_dataset, get_number_of_steps
 from configuration_info.config_sanity import check_test_config
+from configuration_info.filestructure import *
 
 
 parser = argparse.ArgumentParser(description='Algorithm tester')
 parser.add_argument("dataset", type=str, help="dataset_suffix")
-parser.add_argument("output_folder", type=str, help="output folder")
+parser.add_argument("experiments", type=str, help="dataset_suffix")
 
 parser.add_argument("-f", "--filename", type=str, default='0', help="Output filename")
 
@@ -29,37 +33,40 @@ args = parser.parse_args()
 
 extension = args.extension
 
+experiments = sorted(args.experiments.split(' '))
+
+target_data = get_graphs_name('--'.join(experiments), args.dataset) + '/'
+
 if args.remove:
-    os.system('rm -rf ' + args.output_folder)
-    print args.output_folder, 'removed'
+    os.system('rm -rf ' + target_data)
+    print target_data, 'removed'
 
-if not os.path.exists(args.output_folder):
-    os.makedirs(args.output_folder)
-#'LRU', 'LFU',
-algorithms = ['GDSF', 'Q']
-
-configs = ['configs/M' + item + '_test_' + args.dataset + '.json' for item in algorithms]
+if not os.path.exists(target_data):
+    os.makedirs(target_data)
 
 graph_data = None
 time_data = []
 flow_data = []
-alphas = []
 names_info = {}
 statistics = {}
+iterations_data = []
+reversal_mapping = {}
 
 mlength = None
 
-max_size = 16 * 1024
-min_size = 0
+max_size = 2 * 1024
+min_size = 512
 
 print 'Loading data...'
 
-for config in configs:
-    configuration = check_test_config(config, verbose=False, load_only=True)
+configs_loaded = []
+for experiment in experiments:
+    configuration = check_test_config(experiment, args.dataset, verbose=False)
     if configuration is None:
         exit(-1)
+    configs_loaded.append(configuration)
 
-    folder = configuration["output_folder"] + '/'
+    folder = configuration["output folder"] + '/'
 
     steps = get_number_of_steps(folder, args.filename, args.skip)
     if mlength is None or mlength > steps:
@@ -67,41 +74,64 @@ for config in configs:
 
 print 'Maximum number of files to use is', mlength
 
-for config in configs:
-    configuration = check_test_config(config, verbose=False, load_only=True)
-    if configuration is None:
-        exit(-1)
+periods = {}
 
-    folder = configuration["output_folder"] + '/'
+for i in range(len(configs_loaded)):
+    configuration = configs_loaded[i]
+    folder = configuration["output folder"] + '/'
 
-    keys_to_ignore = []
-    if "generic checker" in configuration.keys():
-        keys_to_ignore += configuration["generic checker"]
+    label = 'EXP' + experiments[i]
+    periods[label] = configuration['period']
 
-    graph_data_new, time_data_new, flow_data_new, alphas_new, names_info_new, statistics_new = load_dataset(
-        folder, args.filename, args.skip, keys_to_ignore, mlength)
+    keys_to_ignore = configuration['classical']
+
+    graph_data_new, time_data_new, flow_data_new, iterations_new, reversal_mapping_new, names_info_new, \
+    statistics_new = load_dataset(folder, args.filename, args.skip, keys_to_ignore, mlength, uid=label)
 
     if graph_data is None:
         graph_data = graph_data_new
         time_data = time_data_new
         flow_data = flow_data_new
-        alphas = alphas_new
         names_info = names_info_new
         statistics = statistics_new
+        iterations_data = iterations_new
+        reversal_mapping = {'OHR': 0}
     else:
         assert time_data == time_data_new
         assert flow_data == flow_data_new
-        alphas = [item for item in alphas if item in alphas_new]
+        if iterations_data is not None:
+            if iterations_new is not None:
+                assert iterations_data == iterations_new
+        else:
+            if iterations_new is not None:
+                iterations_data = iterations_new
+
+        items_to_remove = [item for item in set(reversal_mapping.keys() + reversal_mapping_new.keys())
+                           if item not in reversal_mapping.keys() or item not in reversal_mapping_new.keys()]
+        for item in items_to_remove:
+            if item in reversal_mapping.keys():
+                del reversal_mapping[item]
+            if item in reversal_mapping_new.keys():
+                del reversal_mapping_new[item]
+
+        if reversal_mapping == {}:
+            print 'Empty mapping'
+            exit(0)
+
         new_keys = graph_data_new.keys()
         for key in new_keys:
             graph_data[key] = graph_data_new[key]
             statistics[key] = statistics_new[key]
             names_info[key] = names_info_new[key]
 
+unique_periods = list(set(periods.values()))
+assert len(unique_periods) == 1
+period = unique_periods[0]
+
 keys = graph_data.keys()
 
 keys_rebuilt = [key for key in keys if
-                names_info[key]['size_value'] > max_size or names_info[key]['size_value'] < min_size]
+                names_info[key]['size'] > max_size or names_info[key]['size'] < min_size]
 for key in keys_rebuilt:
     del graph_data[key]
     del statistics[key]
@@ -111,62 +141,71 @@ keys = graph_data.keys()
 
 if args.percentiles:
     print 'Building percentiles'
-    percentiles_folder = args.output_folder + 'percentiles/'
+    percentiles_folder = target_data + 'percentiles/'
     if not os.path.exists(percentiles_folder):
         os.makedirs(percentiles_folder)
-    build_percentiles(names_info, statistics, keys, alphas, percentiles_folder, extension)
+    build_percentiles(names_info, statistics, keys, reversal_mapping.keys(), percentiles_folder, extension)
 
-graph_folder = args.output_folder + 'graphs/'
+graph_folder = target_data + 'graphs/'
 if not os.path.exists(graph_folder):
     os.makedirs(graph_folder)
-
-smoothed_time_data = [int(item) for item in smooth(time_data, args.smooth)]
-smoothed_flow_data = smooth(flow_data, args.smooth)
 
 smoothed_graph_data = {}
 for key in graph_data.keys():
     element_list = {}
     smoothed_graph_data[key] = {}
     for alpha in graph_data[key].keys():
-        smoothed_graph_data[key][alpha] = smooth(graph_data[key][alpha], args.smooth)
+        smoothed_graph_data[key][alpha] = smooth(graph_data[key][alpha], args.smooth,
+                                                 iterations_data, flow_data, alpha, period)
+
+smoothed_flow_data = smooth(None, args.smooth, None, flow_data, 0, period)
+iterations_data = smooth(None, args.smooth, iterations_data, None, 0, period)
+smoothed_time_data = [int(item) for item in smooth(time_data, args.smooth, None, None, 0, period)]
+period *= args.smooth
 
 if args.plots:
     print 'Building graphs'
-    sizes = list(set([names_info[key]['size_value'] for key in names_info.keys()]))
+    sizes = list(set([names_info[key]['size'] for key in names_info.keys()]))
     sizes_mapping = {}
     for size in sizes:
-        algorithms_to_build = [key for key in names_info.keys() if names_info[key]['size_value'] == size]
-        for alpha in alphas:
-            filename = graph_folder + names_info[algorithms_to_build[0]]['size'] + '_' + alpha + '.' + extension
-            title = alpha + ' ' + names_info[algorithms_to_build[0]]['size']
+        algorithms_to_build = [key for key in smoothed_graph_data.keys() if names_info[key]['size'] == size]
+        for alpha in reversal_mapping.keys():
+            filename = graph_folder + names_info[algorithms_to_build[0]]['text size'] + '_' + alpha + '.' + extension
+            title = alpha + ' ' + names_info[algorithms_to_build[0]]['text size']
             print '\tBuilding', filename
             build_graphs(smoothed_graph_data, smoothed_time_data, smoothed_flow_data,
                          alpha, algorithms_to_build, filename, title, extension)
 
 if args.normed_plots:
     print 'Building relative graphs'
-    min_key_perfix = u'AL-GDSF-A-'
+    min_key_perfix = u'AL-GDSF-'
 
-    graph_folder = args.output_folder + 'graphs_relative/'
+    graph_folder = target_data + 'graphs_relative/'
     if not os.path.exists(graph_folder):
         os.makedirs(graph_folder)
 
     relative_graph_data = {}
+
+    normalization_keys = {}
+    for key in smoothed_graph_data.keys():
+        if min_key_perfix in key:
+            normalization_keys[names_info[key]['size']] = key
+
     for key in smoothed_graph_data.keys():
         element_list = {}
         relative_graph_data[key] = {}
         for alpha in smoothed_graph_data[key].keys():
-            normalization_key = min_key_perfix + str(names_info[key]['size_value'])
+            normalization_key = normalization_keys[names_info[key]['size']]
             relative_graph_data[key][alpha] = \
                 np.asarray(smoothed_graph_data[key][alpha]) - np.asarray(smoothed_graph_data[normalization_key][alpha])
 
-    sizes = list(set([names_info[key]['size_value'] for key in names_info.keys()]))
+    sizes = list(set([names_info[key]['size'] for key in smoothed_graph_data.keys()]))
     sizes_mapping = {}
     for size in sizes:
-        algorithms_to_build = [key for key in names_info.keys() if names_info[key]['size_value'] == size]
-        for alpha in alphas:
-            filename = graph_folder + names_info[algorithms_to_build[0]]['size'] + '_' + alpha + '.' + extension
-            title = alpha + ' ' + names_info[algorithms_to_build[0]]['size']
+        algorithms_to_build = [key for key in names_info.keys() if names_info[key]['size'] == size]
+        for alpha in reversal_mapping.keys():
+            filename = graph_folder + names_info[algorithms_to_build[0]]['text size'] + '_' + alpha + '.' + extension
+            title = alpha + ' ' + names_info[algorithms_to_build[0]]['text size']
             print '\tBuilding', filename
             build_graphs(relative_graph_data, smoothed_time_data, smoothed_flow_data,
                          alpha, algorithms_to_build, filename, title, extension)

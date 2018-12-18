@@ -3,16 +3,16 @@
 
 	"seed": 278,
 
-	"max time": 6,
+	"max time": 12,
 
 	"drop keys": true,
 
 	"algorithm type": [["ML-LRU", "4"]],
-	"compare algorithms": ["AL-LRU", "SH-LRU"],
+	"compare algorithms": ["SH-GDSF", "SH-LRU"],
 
-	"check size": [128],
+	"check size": [1024],
 
-	"min size": 32,
+	"min size": 512,
 	"max size": 7,
 	"step": 2,
 

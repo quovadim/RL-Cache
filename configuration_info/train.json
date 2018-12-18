@@ -213,5 +213,12 @@
 		"recommendation": [0, 100],
 		"required": false,
 		"default": 75
+	},
+
+	"jump": {
+		"interval": [0, null],
+		"recommendation": [0, null],
+		"required": false,
+		"default": 0
 	}
 }

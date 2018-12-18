@@ -47,10 +47,8 @@ keys_to_ignore = configuration['classical']
 
 print 'Loading data...'
 
-graph_data, time_data, flow_data, alphas, names_info, statistics = load_dataset(folder,
-                                                                                args.filename,
-                                                                                args.skip,
-                                                                                keys_to_ignore)
+graph_data, time_data, flow_data, iterations_data, reversal_mapping, names_info, statistics = load_dataset(
+    folder, args.filename, args.skip, keys_to_ignore)
 
 keys = [key for key in graph_data.keys() if key not in keys_to_ignore]
 
@@ -59,7 +57,7 @@ if args.percentiles:
     percentiles_folder = output_folder + 'percentiles/'
     if not os.path.exists(percentiles_folder):
         os.makedirs(percentiles_folder)
-    build_percentiles(names_info, statistics, keys, alphas, percentiles_folder, extension)
+    build_percentiles(names_info, statistics, keys, reversal_mapping.keys(), percentiles_folder, extension)
 
 if not args.plots:
     exit(0)
@@ -68,23 +66,25 @@ graph_folder = output_folder + 'graphs/'
 if not os.path.exists(graph_folder):
     os.makedirs(graph_folder)
 
-smoothed_time_data = [int(item) for item in smooth(time_data, args.smooth)]
-smoothed_flow_data = smooth(flow_data, args.smooth)
-
 smoothed_graph_data = {}
 for key in graph_data.keys():
     element_list = {}
     smoothed_graph_data[key] = {}
     for alpha in graph_data[key].keys():
-        smoothed_graph_data[key][alpha] = smooth(graph_data[key][alpha], args.smooth)
+        smoothed_graph_data[key][alpha] = smooth(graph_data[key][alpha], args.smooth, iterations_data, flow_data,
+                                                 reversal_mapping[alpha], configuration['period'])
 
+smoothed_flow_data = smooth(None, args.smooth, None, flow_data, 0, configuration['period'])
+iterations_data = smooth(None, args.smooth, iterations_data, None, 0, configuration['period'])
+smoothed_time_data = [int(item) for item in smooth(time_data, args.smooth, None, None, 0, configuration['period'])]
+configuration['period'] *= args.smooth
 
 print 'Building graphs'
 sizes = list(set([names_info[key]['size'] for key in names_info.keys()]))
 sizes_mapping = {}
 for size in sizes:
     algorithms_to_build = [key for key in names_info.keys() if names_info[key]['size'] == size]
-    for alpha in alphas:
+    for alpha in reversal_mapping.keys():
         filename = graph_folder + names_info[algorithms_to_build[0]]['text size'] + '_' + alpha + '.' + extension
         title = alpha + ' ' + names_info[algorithms_to_build[0]]['text size']
         print '\tBuilding', filename

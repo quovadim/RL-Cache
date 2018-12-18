@@ -140,10 +140,36 @@ def sample_values(data, mval):
     return np.asarray([np.random.choice(range(0, mval), p=item/sum(item)) for item in tqdm(data)])
 
 
-def smooth(data, factor):
+def smooth(data, factor, iterations, flow, alpha, interval):
     data_new = []
+    if data is None:
+        if flow is not None:
+            new_flow = []
+            for i in range(0, len(flow), factor):
+                dist = min(i + factor, len(flow)) - i
+                new_flow.append(sum(flow[i:i+dist]) * interval / (dist * interval))
+            return new_flow
+        if iterations is not None:
+            new_iterations = []
+            for i in range(0, len(iterations), factor):
+                dist = min(i + factor, len(iterations)) - i
+                new_iterations.append(sum(iterations[i:i + dist]))
+            return new_iterations
+        return None
+
     for i in range(0, len(data), factor):
-        data_new.append(np.mean(data[i:min(i + factor, len(data))]))
+        dist = min(i + factor, len(data)) - i
+        data_elements = data[i:i + dist]
+        if iterations is not None and (alpha == 1 or alpha == 0):
+            if alpha == 1:
+                normalization_elements = [item * interval for item in flow[i:i + dist]]
+            else:
+                normalization_elements = iterations[i:i + dist]
+            data_elements = [data_elements[j] * normalization_elements[j] for j in range(dist)]
+            new_data_value = sum(data_elements) / sum(normalization_elements)
+        else:
+            new_data_value = np.mean(data_elements)
+        data_new.append(new_data_value)
     return data_new
 
 
@@ -156,7 +182,7 @@ def get_number_of_steps(filepath, filename, skip):
     return len(file_names) - skip
 
 
-def load_data(filepath, filename, skip, max_length=None):
+def load_data(filepath, filename, skip, max_length=None, uid=''):
     file_names = [(join(filepath, f), int(f.replace(filename + '_', ''))) for f in listdir(filepath)
                  if isfile(join(filepath, f)) and filename in f]
     file_names = sorted(file_names, key=lambda x: x[1])
@@ -164,25 +190,34 @@ def load_data(filepath, filename, skip, max_length=None):
 
     time_data = []
     flow_data = []
+    iterations_data = []
     alphas = None
     graph_data = {}
 
+    if uid != '':
+        uid = '-' + uid
+
     if max_length is not None:
         file_names = file_names[:max_length]
+
+    seen_keys = []
 
     for filename in file_names[skip:]:
         od = pickle.load(open(filename, 'r'))
         if alphas is None:
             alphas = od['alphas']
         for key in od.keys():
-            if key == 'time' or key == 'flow' or key == 'alphas':
+            if key == 'time' or key == 'flow' or key == 'alphas' or key == 'iterations':
                 continue
-            if key not in graph_data.keys():
-                graph_data[key] = []
-            graph_data[key] += od[key]
+            if key not in seen_keys:
+                graph_data[key + uid] = []
+                seen_keys.append(key)
+            graph_data[key + uid] += od[key]
 
         time_data += od['time']
         flow_data.append(od['flow'])
+        if 'iterations' in od.keys():
+            iterations_data.append(od['iterations'])
 
     if alphas is None:
         alphas = [-1.]
@@ -190,11 +225,12 @@ def load_data(filepath, filename, skip, max_length=None):
     alphas_mapping = {-1.: 'UNKNOWN', 1.: 'BHR', 0.5: 'EQMix', 0.: 'OHR'}
     alphas_text = []
     for alpha in alphas:
-        if alpha in alphas_mapping.keys():
-            alphas_text.append(alphas_mapping[alpha])
-        else:
-            alphas_text.append('UN' + str(alpha))
+        if alpha not in alphas_mapping.keys():
+            alphas_mapping[alpha] = 'UN' + str(alpha)
+        alphas_text.append(alphas_mapping[alpha])
+    reversal_mapping = dict(zip(alphas_text, alphas))
     graph_data_transposed = {}
+
     for key in graph_data.keys():
         data = graph_data[key]
         alphas_data = {}
@@ -203,13 +239,22 @@ def load_data(filepath, filename, skip, max_length=None):
         graph_data_transposed[key] = alphas_data
     graph_data = graph_data_transposed
 
-    return graph_data, time_data, flow_data, alphas_text
+    if not iterations_data:
+        iterations_data = None
+
+    return graph_data, time_data, flow_data, iterations_data, reversal_mapping
 
 
-def load_dataset(folder, filename, skip, keys_to_ignore, max_length=None):
-    graph_data, time_data, flow_data, alphas = load_data(folder, filename, skip, max_length)
+def load_dataset(folder, filename, skip, keys_to_ignore, max_length=None, uid=''):
+    graph_data, time_data, flow_data, iterations_data, reversal_mapping = load_data(
+        folder, filename, skip, max_length, uid)
     time_data = [int(item) for item in time_data]
     flow_data = flow_data
+
+    if uid != '':
+        uid = '-' + uid
+
+    keys_to_ignore = [key + uid for key in keys_to_ignore]
 
     keys = [key for key in graph_data.keys() if key not in keys_to_ignore]
     for key in keys_to_ignore:
@@ -226,7 +271,7 @@ def load_dataset(folder, filename, skip, keys_to_ignore, max_length=None):
         for alpha in graph_data[key].keys():
             statistics[key][alpha] = get_stats(graph_data[key][alpha])
 
-    return graph_data, time_data, flow_data, alphas, names_info, statistics
+    return graph_data, time_data, flow_data, iterations_data, reversal_mapping, names_info, statistics
 
 
 def get_stats(data_vector):
@@ -255,9 +300,10 @@ def build_graphs(graph_data, time_data, flow_data, alpha, keys, filename, title,
 
     names_mappings = compress_names(keys)
 
-    for key in keys:
+    for key in sorted(keys):
         data_selected = 100 * np.asarray(graph_data[key][alpha])
         ax.plot(accumulated_time, data_selected, label=names_mappings[key])
+        print names_mappings[key], np.mean(data_selected)
 
     ax2 = ax.twinx()
     ax2.xaxis.set_major_formatter(xfmt)
@@ -286,7 +332,7 @@ def build_barchart(names_info, statistics, keys, alpha, target_name, filename, e
     for i in order:
         size = sizes[i]
 
-        keys_simplified = sorted([names_info[key]['short name'] for key in
+        keys_simplified = sorted([names_info[key]['unsized name'] for key in
                                   keys if names_info[key]['size'] == size])
 
         assert len(keys_simplified) == len(set(keys_simplified))
@@ -311,7 +357,7 @@ def build_barchart(names_info, statistics, keys, alpha, target_name, filename, e
     for i in range(len(keys_lightweight)):
         lwc = keys_lightweight[i]
         keys_for_lws = [(key, names_info[key]['size'])
-                        for key in keys if names_info[key]['short name'] == lwc]
+                        for key in keys if names_info[key]['unsized name'] == lwc]
         keys_for_lws = zip(*sorted(keys_for_lws, key=lambda x: x[1]))[0]
         target = [statistics[key][alpha][target_name] for key in keys_for_lws]
         if target_name == 'mean':

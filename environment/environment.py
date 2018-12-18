@@ -74,20 +74,6 @@ def test(config, o_file_generator):
                 for alg in algorithms.keys():
                     algorithms[alg].reset()
 
-            for featurer in featurers:
-                feature_set = featurer.gen_feature_set(current_rows)
-                feature_sets.append(feature_set)
-
-            for featurer in featurers:
-                featurer.preserve()
-
-            predictions_adm, decisions_adm, \
-            predictions_evc, decisions_evc, _ = generate_data_for_models(feature_sets,
-                                                                         admission_models,
-                                                                         eviction_models,
-                                                                         models,
-                                                                         config['batch size'])
-
             if not needs_warmup:
                 if trace_beginning_time is None:
                     trace_beginning_time = current_rows[0]['timestamp']
@@ -101,13 +87,28 @@ def test(config, o_file_generator):
                 virt_time_left = max_time_diff - (end_time - trace_beginning_time)
                 real_time_left = int(max_time_diff * float(real_time_spent) / float(virt_time_spent)) - real_time_spent
 
-                print 'Collected: {:<10d}'.format(len(current_rows)), \
-                    'Traffic flow {:>6s}bpS'.format(
+                print 'Collected: {:d}'.format(len(current_rows)), \
+                    'Traffic flow {:s}bpS'.format(
                         fsize(8 * trace_collected_size / (end_time - trace_beginning_time))), \
-                    'Real Time left', to_ts(real_time_left), \
-                    'Virt Time left', to_ts(virt_time_left), \
-                    'Real time spent', to_ts(real_time_spent), \
-                    'Virt time spent', to_ts(virt_time_spent)
+                    'RL', to_ts(real_time_left), \
+                    'RS', to_ts(real_time_spent), \
+                    'VL', to_ts(virt_time_left), \
+                    'VS', to_ts(virt_time_spent)
+
+
+            for featurer in featurers:
+                feature_set = featurer.gen_feature_set(current_rows)
+                feature_sets.append(feature_set)
+
+            for featurer in featurers:
+                featurer.preserve()
+
+            predictions_adm, decisions_adm, \
+            predictions_evc, decisions_evc, _ = generate_data_for_models(feature_sets,
+                                                                         admission_models,
+                                                                         eviction_models,
+                                                                         models,
+                                                                         config['batch size'])
 
             log_file = o_file_generator + '_' + str(file_counter)
             if needs_warmup:
@@ -186,9 +187,6 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
     step = period - config['overlap']
     overlap = config['overlap']
 
-    if 'duplications' not in config.keys():
-        config['duplications'] = 0
-
     duplication = config['duplications']
 
     s_actions_evc = np.diag(np.ones((last_dim,)))
@@ -219,6 +217,8 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
     initial_samples = samples / 2
     initial_cache_size = cache_size
 
+    jump = config['jump']
+
     total_duplications = duplication
 
     logging = False
@@ -231,6 +231,7 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
     duplicate = config['duplicate']
 
     while iteration <= runs:
+
         if not duplicate and iteration > runs:
             iteration = 0
             refresh_value = config['refresh value']
@@ -245,31 +246,32 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
 
         cache_size_str = hurry_fsize(cache_size)
         if duplication != 0 and duplicate:
-            print_string = 'Using \033[1m\033[94m{:' + str(len(cache_size_str)) + 's} cache up to {:^6s}\033[0m ' \
-                           'next duplication in \033[1m{:>4d}/{:<4d}\033[0m ' \
-                           'duplications left \033[1m{:>4d}/{:<4d}\033[0m ' \
-                           'period \033[1m{:>9d}/{:<9d}\033[0m ' \
-                           'samples \033[1m{:>5d}/{:<5d}\033[0m ' \
-                           'seed \033[1m{:^6d}\033[0m ' \
-                           'step \033[1m{:^6d}\033[0m'
+            print_string = 'Using \033[1m\033[94m{:s} cache up to {:s}\033[0m ' \
+                           'next duplication in \033[1m{:d}/{:d}\033[0m ' \
+                           'duplications left \033[1m{:d}/{:d}\033[0m ' \
+                           'period \033[1m{:d}/{:d}\033[0m ' \
+                           'samples \033[1m{:d}/{:d}\033[0m ' \
+                           'seed \033[1m{:d}\033[0m ' \
+                           'step \033[1m{:d}\033[0m ' \
+                           'alpha \033[1m{:f}\033[0m'
             insertion = [cache_size_str, hurry_fsize(cache_size + initial_cache_size * duplication),
                          runs - iteration, runs,
                          duplication, total_duplications,
                          period, period + initial_prediod * duplication,
                          samples, samples + initial_samples * duplication,
-                         config['session configuration']['seed'], step]
+                         config['session configuration']['seed'], step, alpha]
 
-            if logging:
-                config['train history'].write(print_string.format(insertion) + '\n')
         else:
-            print_string = 'Using \033[1m\033[94m{:' + str(len(cache_size_str)) + 's} \033[0mcache ' \
-                           'done in \033[1m{:^4d}\033[0m ' \
-                           'period \033[1m{:^9d}\033[0m ' \
-                           'samples \033[1m{:^5d}\033[0m ' \
-                           'seed \033[1m{:^6d}\033[0m ' \
-                           'step \033[1m{:^6d}\033[0m'
-            insertion = [hurry_fsize(cache_size), runs - iteration, period, samples,
-                         config['session configuration']['seed'], step]
+            print_string = 'Using \033[1m\033[94m{:s} \033[0mcache ' \
+                           'done in \033[1m{:d}\033[0m ' \
+                           'repeats \033[1m{:d}\033[0m ' \
+                           'period \033[1m{:d}\033[0m ' \
+                           'samples \033[1m{:d}\033[0m ' \
+                           'seed \033[1m{:d}\033[0m ' \
+                           'step \033[1m{:d}\033[0m ' \
+                           'alpha \033[1m{:f}\033[0m'
+            insertion = [hurry_fsize(cache_size), runs - iteration, duplication, period, samples,
+                         config['session configuration']['seed'], step, alpha]
 
         print print_string.format(*insertion), \
             'Time spent\033[1m', to_ts(int(real_time()) - real_start_time), '\033[0m', \
@@ -279,7 +281,7 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
 
         print '\033[93m' + ''.join(['-'] * 180) + '\033[0m'
 
-        if duplication != 0 and iteration == runs:
+        if duplicate and duplication != 0 and iteration > runs:
             cache_size += initial_cache_size
             duplication -= 1
             iteration = 0
@@ -375,10 +377,16 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
 
             current_rows.append(row)
 
+            if steps_before_skip == 1:
+                additional_steps = max(step + jump - period, 0)
+            else:
+                additional_steps = 0
+
             if (skip_required and len(current_rows) != warmup_period) or \
-                    (not skip_required and not warming_to_required_state and len(current_rows) != period) or \
+                    (not skip_required and not warming_to_required_state and
+                     len(current_rows) != period + additional_steps) or \
                     (not skip_required and warming_to_required_state and len(current_rows) !=
-                     step * step_length):
+                     (jump + step * step_length)):
                 continue
 
             if not skip_required:
@@ -397,10 +405,11 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
                 featurer.classical = True
                 classical_features = featurer.gen_feature_set(current_rows)
             else:
+                needs_to_compute = period - len(ml_features)
                 featurer.classical = False
-                extended_ml_features = featurer.gen_feature_set(current_rows[overlap:])
+                extended_ml_features = featurer.gen_feature_set(current_rows[period - needs_to_compute:])
                 featurer.classical = True
-                extended_classical_features = featurer.gen_feature_set(current_rows[overlap:])
+                extended_classical_features = featurer.gen_feature_set(current_rows[period - needs_to_compute:])
                 ml_features = np.concatenate([ml_features, extended_ml_features], axis=0)
                 classical_features = np.concatenate([classical_features, extended_classical_features], axis=0)
 
@@ -473,11 +482,17 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
                     algorithms_copy[key] = copy_object(algorithms[key])
                     algorithms_copy[key].reset()
 
-                data = test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step], alpha,
-                                             None, special_keys, base_iteration=base_iteration, print_at=step,
+                if steps_before_skip == 0:
+                    step_to_make = step + jump
+                else:
+                    step_to_make = step
+
+                data = test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step_to_make],
+                                             alpha, None, special_keys, base_iteration=base_iteration, print_at=step,
                                              verbose=verbose)
                 if logging:
-                    write_performance_to_log(config['train history'], data, base_iteration + warmup_period + step, 'B')
+                    write_performance_to_log(config['train history'], data,
+                                             base_iteration + warmup_period, 'B')
 
             config['session configuration']['seed'] = random.randint(0, 1000000 - 1)
 
@@ -541,7 +556,7 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
                         threads[thread_number] = threaded(generate_session_continious)(
                             predictions_eviction,
                             predictions_admission,
-                            current_rows,
+                            current_rows[:period],
                             algorithm_rng,
                             config['session configuration'],
                             step,
@@ -598,16 +613,21 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
                                                                                   batch_size)
                     algorithms_copy = {}
                     if repetition == repetitions - 1:
+                        if steps_before_skip == 0:
+                            step_to_make = step + jump
+                        else:
+                            step_to_make = step
                         for key in algorithms.keys():
                             algorithms[key].reset()
                         algorithms_copy = algorithms
                     else:
+                        step_to_make = step
                         for key in algorithms.keys():
                             algorithms_copy[key] = copy_object(algorithms[key])
                             algorithms_copy[key].reset()
 
                     data = test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc,
-                                                 current_rows[:step], alpha, None, special_keys,
+                                                 current_rows[:step_to_make], alpha, None, special_keys,
                                                  base_iteration=base_iteration, print_at=step, verbose=verbose)
                     if logging:
                         write_performance_to_log(config['train history'], data, base_iteration + warmup_period + step,
@@ -640,11 +660,15 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
             del actions_evc
             del actions_adm
 
-            current_rows = current_rows[step:]
-            ml_features = ml_features[step:]
-            classical_features = classical_features[step:]
+            if steps_before_skip == 0:
+                step_to_make = step + jump
+            else:
+                step_to_make = step
+            current_rows = current_rows[step_to_make:]
+            ml_features = ml_features[step_to_make:]
+            classical_features = classical_features[step_to_make:]
 
-            base_iteration += step
+            base_iteration += step_to_make
 
         for key in algorithms.keys():
             algorithms[key].reset()
