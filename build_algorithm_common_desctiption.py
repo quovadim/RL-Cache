@@ -5,9 +5,6 @@ import numpy as np
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-os.environ["CUDA_VISIBLE_DEVICES"]="-1"
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
 from graphs_auxiliary import smooth, build_graphs, build_percentiles, load_dataset, get_number_of_steps
 from configuration_info.config_sanity import check_test_config
 from configuration_info.filestructure import *

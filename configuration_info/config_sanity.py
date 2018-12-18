@@ -195,6 +195,9 @@ def check_statistics_config(experiment_name, tabulation='', verbose=True):
 
     config = apply_config(configuration_rules, config, tabulation)
 
+    if not config['usable names']:
+        config['usable names'] = PacketFeaturer.log_features
+
     config['filename'] = get_intervals_name(experiment_name)
 
     if not config['save'] and not config['load']:

@@ -78,7 +78,6 @@ vector<double> FeatureCollector::get_packet_features_dbl(uint64_t packet_id) {
 
 void FeatureCollector::clear_data(uint64_t max_interval) {
 	vector<uint64_t> to_delete;
-	cerr << endl;
 	for(auto it = packets_observed.begin(); it != packets_observed.end(); it++) {
 		if (real_time - last_appearance.at(*it) >= max_interval) {
 			to_delete.push_back(*it);

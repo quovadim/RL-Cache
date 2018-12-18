@@ -60,5 +60,12 @@
     "recommendation": [0.9, 1],
     "required": false,
     "default": 0.999
+  },
+
+  "usable names": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": []
   }
 }

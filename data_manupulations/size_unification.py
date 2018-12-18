@@ -5,13 +5,11 @@ from os.path import isfile, join
 import argparse
 
 
-def iterate_dataset(filepath):
-    filelist = sorted([filepath + f for f in listdir(filepath) if isfile(join(filepath, f)) and '.out' in f])
+def iterate_dataset(filelist):
     for filename in sorted(filelist):
-        print 'Total {:d} using file'.format(len(filelist)), filename
         local_frame = pd.read_csv(filename, index_col=False, delimiter=' ', names=['timestamp', 'id', 'size',
                                                                                    'response'])
-        yield local_frame
+        yield filename, local_frame
 
 
 parser = argparse.ArgumentParser(description='Tool to fix size issue into the source dataset')
@@ -23,11 +21,16 @@ args = parser.parse_args()
 if not os.path.exists(args.output_path):
     os.makedirs(args.output_path)
 
-print 'remaking', args.data_path, 'into', args.output_path
+filelist = sorted([args.data_path + f for f in listdir(args.data_path) if isfile(join(args.data_path, f))])
 
 start_series = None
-for frame in iterate_dataset(args.data_path):
+counter = 0
+total_lines = 0
+for filename, frame in iterate_dataset(filelist):
     frame.drop(columns=['timestamp', 'response'], inplace=True)
+    total_lines += len(frame)
+    print 'Collecting {:d}/{:d} lines: {:d}M file {:s}'.format(counter, len(filelist), int(total_lines/1e6), filename)
+    counter += 1
     if start_series is None:
         frame = frame.groupby('id').max()
         frame.reset_index(inplace=True)
@@ -38,7 +41,8 @@ for frame in iterate_dataset(args.data_path):
         start_series.reset_index(inplace=True)
 
 counter = 0
-for frame in iterate_dataset(args.data_path):
+for filename, frame in iterate_dataset(filelist):
+    print 'Merging  {:d}/{:d} file {:s}'.format(counter, len(filelist), filename)
     frame = frame.merge(start_series, left_on='id', right_on='id', how='left')
     frame['size'] = frame[["size_x", "size_y"]].max(axis=1)
     frame.drop(columns=['response', 'size_y', 'size_x'], inplace=True)

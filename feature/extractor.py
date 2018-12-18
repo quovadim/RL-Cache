@@ -5,37 +5,6 @@ import numpy as np
 from tqdm import tqdm
 import pickle
 
-feature_extractors = {
-    'log size': lambda x: np.log(1 + float(x['size'])),
-    'log frequency': lambda x: np.log(1 + float(x['size'])),
-    'gdsf': lambda x: np.log(1 + float(x['size'])),
-    'number_of_observations': lambda x: np.log(1 + float(x['size'])),
-    'size': lambda x: np.log(1 + float(x['size'])),
-    'recency': lambda x: np.log(1 + float(x['size'])),
-    'exponential recency': lambda x: np.log(1 + float(x['size'])),
-    'log gdsf': lambda x: np.log(1 + float(x['size'])),
-    'log bhr': lambda x: np.log(1 + float(x['size'])),
-    'log time recency': lambda x: np.log(1 + float(x['size'])),
-    'log request recency': lambda x: np.log(1 + float(x['size'])),
-    'log exp time recency': lambda x: np.log(1 + float(x['size'])),
-    'log exp request recency': lambda x: np.log(1 + float(x['size']))
-}
-
-
-feature_names = ['log size',
-                 'log frequency',
-                 #'gdsf',
-                 #'number_of_observations',
-                 #'size',
-                 #'recency',
-                 #'exponential recency',
-                 'log gdsf',
-                 'log bhr',
-                 'log time recency',
-                 'log request recency',
-                 'log exp time recency',
-                 'log exp request recency']
-
 
 def iterate_dataset(filenames):
     for fname in filenames:
@@ -51,11 +20,22 @@ def iterate_dataset(filenames):
         hdlr.close()
 
 
+def split_feature(feature, perc_steps):
+    percs = [i * 100 / perc_steps for i in range(perc_steps + 1)]
+    percentiles = [np.percentile(feature, item) for item in percs]
+    percentiles[0] -= 1
+    percentiles[len(percentiles) - 1] += 1
+    percentiles = list(np.unique(percentiles))
+    percentiles = sorted(percentiles)
+    return [(percentiles[i-1], percentiles[i]) for i in range(1, len(percentiles))]
+
+
 def collect_features(output_filename, t_max, filenames):
     feature_matrix = []
     counter = 0
 
-    summary = np.zeros((len(feature_names),))
+    local_feature_names = PacketFeaturer.ml_feature_names
+    summary = np.zeros((len(local_feature_names),))
 
     featurer = PacketFeaturer(None)
 
@@ -78,7 +58,7 @@ def collect_features(output_filename, t_max, filenames):
                 str_formatted = ' '.join(['{:^8s}: {:^6.4f}' for _ in range(d)])
                 str_formatted = '{:8d}  ' + str_formatted
                 mean_list = summary / counter
-                name_list = [item[:10] for item in feature_names]
+                name_list = [item[:10] for item in local_feature_names]
                 common = [counter]
                 for i in range(len(name_list)):
                     common.append(name_list[i])
@@ -116,7 +96,30 @@ def print_statistics(statistics):
 class PacketFeaturer:
 
     feature_names = ['timestamp', 'id', 'size', 'number_of_observations', 'last_appearance',
-                     'exponential_recency', 'logical_time', 'exponential_logical_time', 'entropy', 'future']
+                     'exponential_recency', 'logical_time', 'exponential_logical_time', 'entropy']#, 'future']
+
+    feature_extractors = {
+        'log size': lambda x, l, r: np.log(1 + float(x['size'])),
+        'log frequency': lambda x, l, r: -np.log(1e-4 + x['number_of_observations'] / (1 + l)),
+        'log gdsf': lambda x, l, r: -np.log(1e-4 + x['number_of_observations'] / (1 + l)) - np.log(1 + float(x['size'])),
+        'log bhr': lambda x, l, r: np.log(1e-4 + x['number_of_observations'] / (1 + l)) + np.log(1 + float(x['size'])),
+        'log time recency': lambda x, l, r: np.log(2 + float(r - x['last_appearance'])),
+        'log request recency': lambda x, l, r: np.log(2 + float(l - x['logical_time'])),
+        'log exp time recency': lambda x, l, r: np.log(2 + float(x['exponential_recency'])),
+        'log exp request recency': lambda x, l, r: np.log(2 + float(x['exponential_logical_time'])),
+        'entropy': lambda x, l, r: 0 if 'entropy' not in x.keys() else x['entropy'],
+        'gdsf': lambda x, l, r: x['number_of_observations'] / (1 + l)(x, l, r) / x['size'],
+        'frequency': lambda x, l, r: x['number_of_observations'] / (1 + l),
+        'number_of_observations': lambda x, l, r: x['number_of_observations'],
+        'size': lambda x, l, r: x['size'],
+        'recency': lambda x, l, r: r - x['last_appearance'],
+        'exponential recency': lambda x: x['exponential_logical_time']
+    }
+
+    ml_feature_names = feature_extractors.keys()
+
+    log_features = [key for key in feature_extractors if 'log ' in key]
+
     feature_types = [int, int, int, int, int, int, float, float, float, float]
 
     def __init__(self, config, verbose=True):
@@ -129,7 +132,13 @@ class PacketFeaturer:
         self.preserved_memory_vector = 0
 
         self.verbose = verbose
-        self.fake_request = dict(zip(PacketFeaturer.feature_names[:8], [1] * len(PacketFeaturer.feature_names)))
+
+        self.names = PacketFeaturer.log_features
+
+        if config is not None:
+            self.names = config["usable names"]
+
+        self.fake_request = dict(zip(PacketFeaturer.feature_names, [1] * len(PacketFeaturer.feature_names)))
         self.fnum = len(self.get_pure_features(self.fake_request))
         self.statistics = []
         self.bias = 0
@@ -169,7 +178,7 @@ class PacketFeaturer:
         lindex = 0
         for i in range(self.fnum):
             if self.verbose:
-                print 'Doing\033[1m', feature_names[i], '\033[0m'
+                print 'Doing\033[1m', PacketFeaturer.ml_feature_names[i], '\033[0m'
                 print_mappings(self.feature_mappings[i])
                 print_statistics(self.statistics[lindex:lindex + len(self.feature_mappings[i])])
             lindex += len(self.feature_mappings[i])
@@ -183,7 +192,7 @@ class PacketFeaturer:
 
         for i in range(self.fnum):
             if self.verbose:
-                print 'Doing\033[1m', feature_names[i], '\033[0m'
+                print 'Doing\033[1m', PacketFeaturer.ml_feature_names[i], '\033[0m'
             self.feature_mappings.append(split_feature(feature_set[:, i], config['split step']))
             statistics_arrays = []
             for _ in range(len(self.feature_mappings[i])):
@@ -201,6 +210,7 @@ class PacketFeaturer:
             self.statistics = data[1]
             self.warmup = config['warmup']
             self.split_step = config['split step']
+            assert len(self.feature_mappings) == len(self.names)
             assert self.split_step == data[2]
             assert self.warmup == data[3]
 
@@ -261,34 +271,8 @@ class PacketFeaturer:
         pass
 
     def get_pure_features(self, packet):
-        feature_vector = []
-
-        feature_vector.append(np.log(1 + float(packet['size'])))
-
-        feature_vector.append(
-            -np.log(1e-4 + float(packet['number_of_observations']) / (1 + self.logical_time)))
-
-        #feature_vector.append(float(packet['number_of_observations']) / float(packet['size']))
-
-        #feature_vector.append(float(packet['number_of_observations']) / (1 + self.logical_time))
-
-        #feature_vector.append(float(packet['size']))
-
-        #feature_vector.append(self.real_time - packet['last_appearance'])
-
-        #feature_vector.append(float(packet['exponential_recency']))
-
-        feature_vector.append(-1 * feature_vector[1] - feature_vector[0])
-
-        feature_vector.append(-1 * feature_vector[1] + feature_vector[0])
-
-        feature_vector.append(np.log(2 + float(self.real_time - packet['last_appearance'])))
-        feature_vector.append(np.log(2 + float(self.logical_time - packet['exponential_recency'])))
-        feature_vector.append(np.log(2 + float(packet['exponential_recency'])))
-        feature_vector.append(np.log(2 + float(packet['logical_time'])))
-
-        features = np.asarray(feature_vector)
-        return features
+        return np.asarray([PacketFeaturer.feature_extractors[key](packet, self.logical_time, self.real_time)
+                           for key in self.names])
 
     def gen_feature_set(self, rows, pure=False):
         self.reset()

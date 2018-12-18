@@ -13,7 +13,6 @@ import sys
 import json
 from tqdm import tqdm
 from hurry.filesize import size as hurry_fsize
-from feature.extractor import iterate_dataset
 
 
 def write_performance_to_log(log, data, iteration, prefix):
@@ -917,16 +916,6 @@ def generate_session_continious(
     assert algorithm_template.get_ratings() == ratings
 
     return lstates, np.asarray(lactions), lstates_adm, np.asarray(lactions_adm), eviction_rating, admission_rating
-
-
-def split_feature(feature, perc_steps):
-    percs = [i * 100 / perc_steps for i in range(perc_steps + 1)]
-    percentiles = [np.percentile(feature, item) for item in percs]
-    percentiles[0] -= 1
-    percentiles[len(percentiles) - 1] += 1
-    percentiles = list(np.unique(percentiles))
-    percentiles = sorted(percentiles)
-    return [(percentiles[i-1], percentiles[i]) for i in range(1, len(percentiles))]
 
 
 def collect_filenames(filepath):
