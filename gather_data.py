@@ -23,17 +23,13 @@ parser.add_argument("mapping", type=str, default=None, help="Loading path to siz
 
 args = parser.parse_args()
 
-if not os.path.exists(args.output_path):
-    os.makedirs(args.output_path)
+filelist = sorted([args.data_path + f for f in listdir(args.data_path) if isfile(join(args.data_path, f))])[:20]
 
-filelist = sorted([args.data_path + f for f in listdir(args.data_path) if isfile(join(args.data_path, f))])
-
-time_moments = []
 min_time = None
 max_time = None
 
-period = args.period * 24 * 60 * 60
-step = args.step * 24 * 60 * 60
+period = args.period * 60 * 60
+step = args.step * 60 * 60
 
 last_counter_save = 0
 
@@ -62,7 +58,6 @@ for filename, frame in iterate_dataset(filelist):
             new_counters.append((cs, end_moment, index))
     counters = new_counters
 
-    time_moments.append((frame.ix[1, 'timestamp'], frame.ix[frame.shape[0] - 1, 'timestamp']))
     print filename, '\033[1m' + to_ts(end_moment - start_moment), '\033[0m', \
         'Total \033[1m' + to_ts(max_time - min_time), '\033[0m', 'Periods gathered\033[1m', len(indicies), '\033[0m'
     counter += 1

@@ -49,6 +49,7 @@ void Environment::calculate_features(string& prefix_input, string& prefix_output
 				continue;
 
 			latest_time = current_packet->timestamp;
+
 			collector->update_packet_state(current_packet);
 			if (j % 1000 == 0) {
 				cerr << "\rFile " << prefix_output + to_string(i) + ".csv" <<

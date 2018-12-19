@@ -58,12 +58,13 @@ if args.load is None:
     print 'Collected'
 else:
     size_mapping = pd.read_csv(args.load)
+    print 'Mapping loaded from', args.load
 
 if args.save is not None:
     if args.load is not None:
         print 'You are saving loaded size mapping, it might be not the best idea'
     size_mapping.to_csv(args.save)
-    print 'Saved to', args.save
+    print 'Mapping saved to', args.save
 
 assert size_mapping is not None
 
@@ -79,9 +80,10 @@ if args.mapping_only:
 counter = 0
 total_lines = 0
 for filename, frame in iterate_dataset(filelist):
+    frame.drop(columns=['response'], inplace=True)
     frame = frame.merge(size_mapping, left_on='id', right_on='id', how='left')
     frame['size'] = frame[["size_x", "size_y"]].max(axis=1)
-    frame.drop(columns=['response', 'size_y', 'size_x'], inplace=True)
+    frame.drop(columns=['size_y', 'size_x'], inplace=True)
     total_lines += len(frame)
     sys.stdout.write('\rMerge {:d}/{:d} lines: {:d}M file {:s}'.format(
         1 + counter, len(filelist), int(total_lines / 1e6), args.output_path + str(counter) + '.csv'))
