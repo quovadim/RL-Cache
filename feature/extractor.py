@@ -98,7 +98,7 @@ def print_statistics(statistics):
 class PacketFeaturer:
 
     core_feature_names = ['timestamp', 'id', 'size', 'number of observations', 'last appearance',
-                          'exponential recency', 'logical time', 'exponential logical time', 'entropy']#, 'future']
+                          'logical time', 'exponential recency', 'exponential logical time', 'entropy']#, 'future']
 
     feature_extractors = {
         'log size': lambda x, l, r: np.log(1 + float(x['size'])),
