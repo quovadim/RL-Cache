@@ -15,7 +15,7 @@ def iterate_dataset(filelist):
 
 parser = argparse.ArgumentParser(description='Tool to fix size issue into the source dataset')
 parser.add_argument("data_path", type=str, help="Path to the source data")
-parser.add_argument("output_path", type=str, help="Path to output data")
+parser.add_argument("-o", "--output_path", type=str, default=None, help="Path to output data")
 parser.add_argument("-b", "--begin", type=int, default=0, help="Number of files to skip from the beginning")
 parser.add_argument("-e", "--end", type=int, default=None, help="Number of files to skip from the end")
 parser.add_argument("-l", "--load", type=str, default=None,
@@ -24,9 +24,6 @@ parser.add_argument("-s", "--save", type=str, default=None, help="Path to save s
 parser.add_argument('-m', '--mapping_only', action='store_true', help="Collect only size mapping")
 
 args = parser.parse_args()
-
-if not os.path.exists(args.output_path):
-    os.makedirs(args.output_path)
 
 filelist = sorted([args.data_path + f for f in listdir(args.data_path) if isfile(join(args.data_path, f))])
 
@@ -76,6 +73,11 @@ if args.mapping_only:
         if args.save is None:
             print "\tYou are not saving mapping and not doing anything else"
     exit(0)
+
+assert args.output_path is not None
+
+if not os.path.exists(args.output_path):
+    os.makedirs(args.output_path)
 
 counter = 0
 total_lines = 0

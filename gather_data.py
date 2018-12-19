@@ -19,7 +19,7 @@ parser.add_argument("data_path", type=str, help="Path to the source data")
 parser.add_argument("output_path", type=str, help="Path to output data")
 parser.add_argument("period", type=int, help="Period in days")
 parser.add_argument("step", type=int, help="Step in days")
-parser.add_argument("mapping", type=str, default=None, help="Loading path to size mapping")
+parser.add_argument("-m", "--mapping", type=str, default=None, help="Loading path to size mapping")
 
 args = parser.parse_args()
 
@@ -27,6 +27,18 @@ filelist = sorted([args.data_path + f for f in listdir(args.data_path) if isfile
 
 min_time = None
 max_time = None
+
+delete_mapping = False
+mapping_name = args.output_path + '_' + 'mapping'
+if args.mapping is None:
+    python_args = [args.data_path,
+                   '-m',
+                   '-s=' + mapping_name]
+
+    command = 'python data_manupulations/size_unification.py ' + ' '.join(python_args)
+    delete_mapping = True
+else:
+    mapping_name = args.mapping
 
 period = args.period * 24 * 60 * 60
 step = args.step * 24 * 60 * 60
@@ -71,10 +83,10 @@ for cs, ce, index in counters:
 data_index = 0
 for s, e in indicies:
     python_args = [args.data_path,
-                   args.output_path + str(data_index) + '_mapping/',
+                   '-o=' + args.output_path + str(data_index) + '_mapping/',
                    '-b=' + str(s),
                    '-e=' + str(e),
-                   '-l=' + args.mapping]
+                   '-l=' + mapping_name]
 
     if not os.path.exists(args.output_path + str(data_index) + '_mapping/'):
         os.makedirs(args.output_path + str(data_index) + '_mapping/')
@@ -97,6 +109,5 @@ for s, e in indicies:
     os.system('rm -rf ' + args.output_path + str(data_index) + '_mapping/')
     data_index += 1
 
-#data_sequencies = []
-#for start, end in time_moments:
-#
+if delete_mapping:
+    os.system('rm ' + mapping_name)

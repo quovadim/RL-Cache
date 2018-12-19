@@ -188,6 +188,8 @@ class PacketFeaturer:
                          self.names], f)
 
     def collect_statistics(self, config):
+        pv = self.verbose
+        self.verbose = True
         data_raw = open(config['statistics'], 'r').readlines()[config['warmup']:]
         feature_set = np.zeros(shape=(len(data_raw), self.feature_num))
 
@@ -214,6 +216,7 @@ class PacketFeaturer:
             if config['show stat'] and self.verbose:
                 print_mappings(self.feature_mappings[name])
                 print_statistics(self.statistics[name])
+        self.verbose = pv
 
     def load_statistics(self, config):
         with open(config['filename'], 'r') as f:
