@@ -56,10 +56,10 @@ def collect_features(output_filename, t_max, filenames):
             if (counter != 0 and counter % 5000 == 0) or counter == t_max:
                 d = featurer.feature_num
                 str_formatted = ' '.join(['{:s}: \033[1m{:^6.4f}\033[0m' for _ in range(d)])
-                str_formatted = '{:d} ' + str_formatted
+                str_formatted = '\033[1m{:d}K\033[0m ' + str_formatted
                 mean_list = summary / counter
                 name_list = [shorten_name(item) for item in featurer.names]
-                common = [counter]
+                common = [counter / 1000]
                 for i in range(len(name_list)):
                     common.append(name_list[i])
                     common.append(mean_list[i])
@@ -126,7 +126,7 @@ class PacketFeaturer:
 
     feature_types = [int, int, int, int, int, int, float, float, float, float]
 
-    def __init__(self, config, verbose=True):
+    def __init__(self, config, verbose=False):
         self.logical_time = 0
         self.real_time = 0
         self.memory_vector = None
