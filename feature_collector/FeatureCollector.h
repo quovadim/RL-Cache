@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <unordered_set>
-
+#include <deque>
 #include "Packet.h"
 
 using std::map;
@@ -19,10 +19,15 @@ using std::pair;
 using std::cerr;
 using std::endl;
 using std::min;
+using std::deque;
 
 class FeatureCollector{
 public:
     FeatureCollector() :
+            entropy(0),
+            N(0),
+            current_sum(0),
+            collected(0),
             logical_time(0),
             real_time(0),
             last_update(0),
@@ -69,6 +74,18 @@ public:
     void clear_data(uint64_t max_interval);
 
 private:
+
+    double entropy;
+
+    int N;
+    double current_sum;
+    int collected;
+    deque<uint64_t> observed;
+    map<uint64_t, int> frequencies;
+
+    deque<uint64_t> time_sequence;
+    deque<uint64_t> id_sequence;
+
     unordered_set<uint64_t> packets_observed;
 
     map<uint64_t, uint64_t> last_appearance;

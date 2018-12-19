@@ -7,9 +7,9 @@
   "bias": 1,
 
   "save": true,
-  "load": true,
+  "load": false,
 
-  "show stat": false,
+  "show stat": true,
 
   "lambda": 0.99995394935
 }

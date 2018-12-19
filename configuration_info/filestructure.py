@@ -1,6 +1,6 @@
 source_experiment_folder = 'experiments/{:s}/{:s}'
 source_test_folder = 'tests/{:s}/{:s}'
-source_data_folder = 'data/{:s}_featured'
+source_data_folder = 'data/{:s}'
 source_graph_folder = 'graphs/{:s}/{:s}'
 source_configuration_rules = 'configuration_info/{:s}'
 

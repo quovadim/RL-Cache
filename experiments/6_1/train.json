@@ -1,7 +1,7 @@
 {
 	"data": "china",
 
-	"cache size": 1024,
+	"cache size": 256,
 
 	"target": "ML-GDSF",
 

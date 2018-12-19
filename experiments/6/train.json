@@ -22,7 +22,7 @@
 		"metric type": "correlated"
 	},
 
-	"samples": 300,
+	"samples": 150,
 	"max samples": 300,
 
 	"percentile admission": 90,

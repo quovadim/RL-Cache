@@ -14,7 +14,7 @@ def iterate_dataset(filepath):
     filenames = sorted(filenames, key=lambda x: x[1])
     filenames = [item[0] for item in filenames]
     for fname in reversed(filenames):
-        names = PacketFeaturer.feature_names
+        names = PacketFeaturer.core_feature_names
         types = PacketFeaturer.feature_types
         hdlr = open(fname, 'r').readlines()
 

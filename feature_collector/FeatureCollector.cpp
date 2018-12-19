@@ -6,21 +6,68 @@
 
 #include <algorithm>
 #include <stdint.h>
+#include <math.h>
 
 using std::find;
 using std::min;
 using std::max;
 using std::pair;
+using std::log;
 
 void FeatureCollector::update_packet_state(Packet* packet) {
     logical_time += 1;
     real_time = packet->timestamp;
 
-    uint64_t period = 3600;
-    if (real_time - last_update > period / 16) {
-    	clear_data(period);
-    	last_update = real_time;
+    uint64_t period = 4 * 3600;
+
+    time_sequence.push_back(real_time);
+    id_sequence.push_back(packet->id);
+    uint64_t time_old = time_sequence.front();
+    uint64_t id_to_remove = id_sequence.front();
+
+    while (real_time - time_old > period) {
+
+        packets_observed.erase(id_to_remove);
+		packet_mapping.erase(id_to_remove);
+		total_appearances.erase(id_to_remove);
+		last_appearance.erase(id_to_remove);
+		logical_time_appearance.erase(id_to_remove);
+		packet_sizes.erase(id_to_remove);
+		exp_recency.erase(id_to_remove);
+		exp_logical.erase(id_to_remove);
+
+		time_sequence.pop_front();
+		id_sequence.pop_front();
+
+		time_old = time_sequence.front();
+		id_to_remove = id_sequence.front();
     }
+
+    const int collection_interval = 500000;
+
+    observed.push_back(packet->id);
+
+    if (observed.size() == collection_interval - 1) {
+        uint64_t removal = observed.front(); // get oldest element
+        observed.pop_front();; // remove oldest element
+
+        int n = frequencies.at(removal); // get its frequency
+
+        if (n != 1) {
+            current_sum += -double(n) * log(n) + (n - 1) * log(n - 1); // update Cs -n*log(n) + (n-1)log(n-1) so -old + new
+			frequencies[removal] -= 1;
+		} else {
+		    frequencies.erase(removal); // Remove elements with 0 frequency, no use from them
+		}
+	}
+	if (frequencies.find(packet->id) != frequencies.end()) {
+		int n = frequencies[packet->id];
+		current_sum += -n * log(n) + (n + 1) * log(n + 1); // update Cs -n*log(n) + (n+1)log(n+1) so -old + new
+		frequencies[packet->id] += 1.;
+	} else {
+		frequencies.insert(pair<uint64_t, int>(packet->id, 1));
+	}
+
     fa = false;
     if (packets_observed.find(packet->id) == packets_observed.end()) {
     	packet_mapping.insert(pair<uint64_t, Packet*>(packet->id, packet));
@@ -73,6 +120,12 @@ vector<double> FeatureCollector::get_packet_features_dbl(uint64_t packet_id) {
 	// Exp logical time
 	double exp_log = exp_logical.at(packet_id);
 	result.push_back(exp_log);
+
+    int N = observed.size();
+	double entropy = log(N) - current_sum/double(N);
+
+	result.push_back(entropy / N);
+
 	return result;
 }
 
@@ -84,14 +137,7 @@ void FeatureCollector::clear_data(uint64_t max_interval) {
 		}
 	}
 	for(auto it = to_delete.begin(); it != to_delete.end(); it++) {
-		packets_observed.erase(*it);
-		packet_mapping.erase(*it);
-		total_appearances.erase(*it);
-		last_appearance.erase(*it);
-		logical_time_appearance.erase(*it);
-		packet_sizes.erase(*it);
-		exp_recency.erase(*it);
-		exp_logical.erase(*it);
+
 	}
 }
 

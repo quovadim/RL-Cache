@@ -27,7 +27,6 @@ csvfiles=($temporary_file_path/*.csv)
 echo './feature_collector/collector' $temporary_file_path $2 ${#csvfiles[@]}
 ./feature_collector/collector $temporary_file_path $2 ${#csvfiles[@]}
 
-
 echo $temporary_file_path 'removed'
 rm -rf $temporary_file_path
 
