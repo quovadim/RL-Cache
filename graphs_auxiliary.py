@@ -11,7 +11,7 @@ from hurry.filesize import size as hurry_fsize
 from environment.environment_aux import name2class, compress_names
 from feature.extractor import PacketFeaturer
 
-header = PacketFeaturer.feature_names
+header = PacketFeaturer.core_feature_names
 
 subscripts = [
     'Size, Bytes',

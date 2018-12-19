@@ -1,8 +1,4 @@
 import argparse
-import os
-
-from environment.environment import train
-from configuration_info.config_sanity import check_train_config
 
 parser = argparse.ArgumentParser(description='Algorithm trainer')
 parser.add_argument("experiment", type=str, help="Name of the experiment")
@@ -14,6 +10,11 @@ parser.add_argument('-v', '--verbose', action='store_true', help="Verbose sanity
 parser.add_argument('-s', '--show', action='store_true', help="Show testing results")
 
 args = parser.parse_args()
+
+import os
+
+from environment.environment import train
+from configuration_info.config_sanity import check_train_config
 
 configuration = check_train_config(args.experiment, verbose=False)
 if configuration is None:

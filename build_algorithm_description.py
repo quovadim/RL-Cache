@@ -4,11 +4,6 @@ import argparse
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-from graphs_auxiliary import smooth, build_graphs, build_percentiles, load_dataset
-from configuration_info.config_sanity import check_test_config
-from configuration_info.filestructure import *
-
-
 parser = argparse.ArgumentParser(description='Algorithm tester')
 parser.add_argument("experiment", type=str, help="Experiment id")
 parser.add_argument("region", type=str, help="Region id")
@@ -25,6 +20,11 @@ parser.add_argument('-l', '--plots', action='store_true', help="Build sizes grap
 parser.add_argument('-p', '--percentiles', action='store_true', help="Build size-aware percentiles")
 
 args = parser.parse_args()
+
+from graphs_auxiliary import smooth, build_graphs, build_percentiles, load_dataset
+from configuration_info.config_sanity import check_test_config
+from configuration_info.filestructure import *
+
 
 configuration = check_test_config(args.experiment, args.region, verbose=False)
 if configuration is None:
@@ -50,14 +50,13 @@ print 'Loading data...'
 graph_data, time_data, flow_data, iterations_data, reversal_mapping, names_info, statistics = load_dataset(
     folder, args.filename, args.skip, keys_to_ignore)
 
-keys = [key for key in graph_data.keys() if key not in keys_to_ignore]
-
 if args.percentiles:
+    percentile_keys = [key for key in graph_data.keys() if key not in keys_to_ignore]
     print 'Building percentiles'
     percentiles_folder = output_folder + 'percentiles/'
     if not os.path.exists(percentiles_folder):
         os.makedirs(percentiles_folder)
-    build_percentiles(names_info, statistics, keys, reversal_mapping.keys(), percentiles_folder, extension)
+    build_percentiles(names_info, statistics, percentile_keys, reversal_mapping.keys(), percentiles_folder, extension)
 
 if not args.plots:
     exit(0)

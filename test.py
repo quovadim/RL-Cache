@@ -1,8 +1,4 @@
 import argparse
-import os
-
-from environment.environment import test
-from configuration_info.config_sanity import check_test_config
 
 parser = argparse.ArgumentParser(description='Algorithm trainer')
 parser.add_argument("experiment", type=str, help="Name of the experiment")
@@ -10,6 +6,11 @@ parser.add_argument("test", type=str, help="Name of the test")
 parser.add_argument('-g', '--gpu', action='store_true', help="Use GPU for computations")
 
 args = parser.parse_args()
+
+import os
+
+from environment.environment import test
+from configuration_info.config_sanity import check_test_config
 
 if not args.gpu:
     print '=============Ignoring GPU============='
