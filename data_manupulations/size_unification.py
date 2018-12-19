@@ -10,7 +10,7 @@ def iterate_dataset(filelist):
     for filename in sorted(filelist):
         local_frame = pd.read_csv(filename, index_col=False, delimiter=' ', names=['timestamp', 'id', 'size',
                                                                                    'response'])
-        yield filename, local_frame
+        yield filename, local_frame[['timestamp', 'id', 'size']]
 
 
 parser = argparse.ArgumentParser(description='Tool to fix size issue into the source dataset')
@@ -40,7 +40,7 @@ if args.load is None:
     counter = 0
     total_lines = 0
     for filename, frame in iterate_dataset(filelist):
-        frame.drop(columns=['timestamp', 'response'], inplace=True)
+        frame.drop(columns=['timestamp'], inplace=True)
         total_lines += len(frame)
         sys.stdout.write('\rCollecting {:d}/{:d} lines: {:d}M file {:s}'.format(
             1 + counter, len(filelist), int(total_lines/1e6), filename))
@@ -80,10 +80,9 @@ if args.mapping_only:
 counter = 0
 total_lines = 0
 for filename, frame in iterate_dataset(filelist):
-    frame.drop(columns=['response'], inplace=True)
     frame = frame.merge(size_mapping, left_on='id', right_on='id', how='left')
     frame['size'] = frame[["size_x", "size_y"]].max(axis=1)
-    frame.drop(columns=['size_y', 'size_x'], inplace=True)
+    frame = frame[['timestamp', 'id', 'size']]
     total_lines += len(frame)
     sys.stdout.write('\rMerge {:d}/{:d} lines: {:d}M file {:s}'.format(
         1 + counter, len(filelist), int(total_lines / 1e6), args.output_path + str(counter) + '.csv'))
