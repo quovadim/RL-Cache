@@ -136,7 +136,6 @@ class PacketFeaturer:
         self.preserved_memory_vector = 0
 
         self.verbose = verbose
-        self.verbose = True
 
         self.names = PacketFeaturer.ml_feature_names
 

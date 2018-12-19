@@ -42,7 +42,7 @@ counters = []
 
 counter = 0
 for filename, frame in iterate_dataset(filelist):
-    start_moment = frame.ix[1, 'timestamp']
+    start_moment = frame.ix[5000, 'timestamp']
     end_moment = frame.ix[frame.shape[0] - 1, 'timestamp']
     if min_time is None:
         min_time = start_moment
@@ -75,12 +75,16 @@ for cs, ce, index in counters:
 
 data_index = 0
 for s, e in indicies:
-    python_args = [args.output_path,
+    python_args = [args.data_path,
                    args.output_path + str(data_index) + '_mapping/',
                    '-b=' + str(s),
-                   '-s=' + str(e),
+                   '-e=' + str(e),
                    '-l=' + args.mapping]
-    command = 'python data_manipulations/size_unification.py' + ' '.join(python_args)
+
+    if not os.path.exists(args.output_path + str(data_index) + '_mapping/'):
+        os.makedirs(args.output_path + str(data_index) + '_mapping/')
+
+    command = 'python data_manupulations/size_unification.py ' + ' '.join(python_args)
     print 'Gathering sizes with ', command
     os.system(command)
 
@@ -89,9 +93,14 @@ for s, e in indicies:
         args.output_path + str(data_index) + '/',
         str(e - s)
     ]
+    if not os.path.exists(args.output_path + str(data_index) + '/'):
+        os.makedirs(args.output_path + str(data_index) + '/')
     cpp_command = './feature_collector/collector ' + ' '.join(cpp_args)
     print 'Collecting features with', cpp_command
     os.system(cpp_command)
+
+    os.system('rm -rf ' + args.output_path + str(data_index) + '_mapping/')
+    data_index += 1
 
 #data_sequencies = []
 #for start, end in time_moments:
