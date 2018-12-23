@@ -85,6 +85,7 @@ private:
 
     deque<uint64_t> time_sequence;
     deque<uint64_t> id_sequence;
+    map<uint64_t, int> observations;
 
     unordered_set<uint64_t> packets_observed;
 

@@ -19,6 +19,10 @@ void GDSimulator::produce_new_cache_state(p::dict &request, double eviction_rati
         return;
 	}
 
+	if (size * 16 > cache_size) {
+		return;
+	}
+
 	prediction_updated_eviction = true;
 
 	while (used_space + size > cache_size) {

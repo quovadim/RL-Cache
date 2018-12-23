@@ -1,0 +1,57 @@
+{
+	"data": "china",
+
+	"cache size": 1024,
+
+	"target": "ML-GDSF",
+
+	"batch size": 4096,
+
+	"seed": 63,
+
+	"session configuration":
+	{
+		"collect discounted": true,
+		"change": true,
+		"change mode": "random",
+		"seed": 45,
+		"initial gamma": 1.0,
+		"gamma": 0.01,
+		"alpha": 0,
+		"use hr": true,
+		"metric type": "correlated"
+	},
+
+	"samples": 1500,
+	"max samples": 300,
+
+	"percentile admission": 90,
+	"percentile eviction": 90,
+
+	"epochs": 1,
+	"warmup": 200000,
+	"runs": 50,
+	"duplications": 20,
+	"duplicate": false,
+	"refresh period": 4,
+	"repetitions": 2,
+	"drop": false,
+	"store period": 2,
+	"overlap": 225000,
+	"period": 250000,
+
+	"refresh policy": "monotonic",
+	"refresh value": 0,
+
+	"algorithms": ["AL-GDSF", "AL-LRU", "SH-GDSF", "SH-LRU"],
+
+	"iterative": false,
+	"start iteration": "E",
+
+	"IP:train admission": true,
+	"IP:train eviction": true,
+
+	"dump sessions": false,
+	"dump limit": 200,
+	"dump percentile": 75
+}

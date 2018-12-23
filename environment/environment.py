@@ -283,14 +283,14 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
         print '\033[93m' + ''.join(['-'] * 180) + '\033[0m'
 
         if duplicate and duplication != 0 and iteration > runs:
-            cache_size += initial_cache_size
+            #cache_size += initial_cache_size
             duplication -= 1
             iteration = 0
-            runs += initial_runs
-            period += initial_prediod
-            overlap += initial_prediod
-            samples += initial_samples
-            refresh_value = config['refresh value']
+            #runs += initial_runs
+            #period += initial_prediod
+            #overlap += initial_prediod
+            #samples += initial_samples
+            #refresh_value = config['refresh value']
             print '\033[91mDUPLICATION\033[0m'
             continue
 

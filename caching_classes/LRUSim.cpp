@@ -8,7 +8,11 @@ void LRUSimulator::produce_new_cache_state(p::dict &request, double eviction_rat
 	uint64_t size = p::extract<uint64_t>(request.get("size"));
 
 	if (!admission_decision) {
-        return;
+        	return;
+	}
+
+	if (size * 16 > cache_size) {
+		return;
 	}
 
 	prediction_updated_eviction = true;
