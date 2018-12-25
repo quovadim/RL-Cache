@@ -32,9 +32,6 @@ void FeatureCollector::update_packet_state(Packet* packet) {
 
     while (real_time - time_old > period) {
 
-        packets_observed.erase(id_to_remove);
-	packet_mapping.erase(id_to_remove);
-
 	observations[id_to_remove]--;
 	if (observations[id_to_remove] == 0) {
 	
@@ -45,6 +42,9 @@ void FeatureCollector::update_packet_state(Packet* packet) {
 		exp_recency.erase(id_to_remove);
 		exp_logical.erase(id_to_remove);
 		observations.erase(id_to_remove);
+		delete packet_mapping.at(id_to_remove);
+		packet_mapping.erase(id_to_remove);
+		packets_observed.erase(id_to_remove);
 	}
 
 	time_sequence.pop_front();

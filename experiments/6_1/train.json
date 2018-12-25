@@ -1,7 +1,7 @@
 {
 	"data": "china",
 
-	"cache size": 1024,
+	"cache size": 512,
 
 	"target": "ML-GDSF",
 
@@ -22,7 +22,7 @@
 		"metric type": "correlated"
 	},
 
-	"samples": 1500,
+	"samples": 500,
 	"max samples": 300,
 
 	"percentile admission": 90,
