@@ -1,7 +1,7 @@
 {
   "wing size": 2,
 
-  "dropout rate": 0.0,
+  "dropout rate": 0.3,
   "use common": false,
   "multiplier common": 4,
   "layers common": 3,
@@ -11,8 +11,8 @@
 
   "use batch normalization": false,
 
-  "eviction lr": 1e-4,
-  "admission lr": 1e-4,
+  "eviction lr": 5e-6,
+  "admission lr": 5e-6,
 
   "mc": false
 }
