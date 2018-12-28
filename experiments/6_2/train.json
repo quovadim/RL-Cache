@@ -1,9 +1,9 @@
 {
 	"data": "china",
 
-	"cache size": 1024,
+	"cache size": 512,
 
-	"target": "ML-LRU",
+	"target": "ML-GDSF",
 
 	"batch size": 4096,
 
@@ -17,12 +17,12 @@
 		"seed": 45,
 		"initial gamma": 1.0,
 		"gamma": 0.01,
-		"alpha": 1,
+		"alpha": 0,
 		"use hr": true,
 		"metric type": "correlated"
 	},
 
-	"samples": 1500,
+	"samples": 500,
 	"max samples": 300,
 
 	"percentile admission": 90,

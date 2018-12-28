@@ -11,9 +11,9 @@ void LRUSimulator::produce_new_cache_state(p::dict &request, double eviction_rat
         	return;
 	}
 
-	if (size * 16 > cache_size) {
-		return;
-	}
+	//if (size * 16 > cache_size) {
+	//	return;
+	//}
 
 	prediction_updated_eviction = true;
 

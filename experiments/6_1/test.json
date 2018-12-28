@@ -10,7 +10,7 @@
 	"algorithm type": [["ML-GDSF", "6_1"]],
 	"compare algorithms": ["SH-GDSF", "AL-GDSF"],
 
-	"check size": [1024, 2048],
+	"check size": [512],
 
 	"min size": 512,
 	"max size": 4,

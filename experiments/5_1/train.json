@@ -1,9 +1,9 @@
 {
 	"data": "china",
 
-	"cache size": 1024,
+	"cache size": 512,
 
-	"target": "ML-GDSF",
+	"target": "ML-LRU",
 
 	"batch size": 4096,
 
@@ -16,13 +16,13 @@
 		"change mode": "random",
 		"seed": 45,
 		"initial gamma": 1.0,
-		"gamma": 0.001,
-		"alpha": 0,
-		"use hr": false,
-		"metric type": "decorrelated"
+		"gamma": 0.01,
+		"alpha": 1,
+		"use hr": true,
+		"metric type": "correlated"
 	},
 
-	"samples": 300,
+	"samples": 500,
 	"max samples": 300,
 
 	"percentile admission": 90,
@@ -30,15 +30,15 @@
 
 	"epochs": 1,
 	"warmup": 200000,
-	"runs": 30,
-	"duplications": 1,
+	"runs": 50,
+	"duplications": 20,
 	"duplicate": false,
-	"refresh period": 3,
-	"repetitions": 3,
+	"refresh period": 4,
+	"repetitions": 2,
 	"drop": false,
-	"store period": 3,
-	"overlap": 125000,
-	"period": 150000,
+	"store period": 2,
+	"overlap": 225000,
+	"period": 250000,
 
 	"refresh policy": "monotonic",
 	"refresh value": 0,

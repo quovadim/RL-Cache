@@ -716,14 +716,14 @@ def test_algorithms_light(algorithms,
             for name in keys:
                 if name in special_keys:
                     if name == best_performance:
-                        print_list.append('\033[93m{:s} \033[0m \033[1m{:6.2f}%\033[0m')
+                        print_list.append('\033[93m{:s}\033[0m \033[1m{:6.2f}%\033[0m')
                     else:
-                        print_list.append('\033[92m{:s} \033[0m \033[1m{:6.2f}%\033[0m')
+                        print_list.append('\033[92m{:s}\033[0m \033[1m{:6.2f}%\033[0m')
                 else:
                     if name == best_performance:
-                        print_list.append('\033[93m{:s} \033[0m \033[1m{:6.2f}%\033[0m')
+                        print_list.append('\033[93m{:s}\033[0m \033[1m{:6.2f}%\033[0m')
                     else:
-                        print_list.append('{:s} \033[1m{:6.2f}%\033[0m')
+                        print_list.append('\033[0m{:s}\033[0m \033[1m{:6.2f}%\033[0m')
             print_string = ' | '.join(print_list)
             print_string = 'I \033[1m{:10d}\033[0m ' + print_string
             subst_vals = [base_iteration + i + 1]

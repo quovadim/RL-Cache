@@ -181,6 +181,9 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
     repetitions = config['repetitions']
     drop = config['drop']
     samples = config['samples']
+    if samples % n_threads != 0 and samples > n_threads:
+        print '\033[1m' + str(samples + samples % n_threads) + '\033[0m', 'will be generated instead of\033[1m', samples, '\033[0mto utilize CPU'
+        samples += samples % n_threads
     alpha = config['session configuration']['alpha']
     classes_names = config['algorithms']
     special_keys = config['special keys']
