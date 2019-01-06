@@ -53,24 +53,29 @@ void FeatureCollector::update_packet_state(Packet* packet) {
 		id_to_remove = id_sequence.front();
 	}
 
-	const int collection_interval = 500000;
+	const uint64_t collection_interval = 600;
 
 	observed.push_back(packet->id);
+	entropy_time.push_back(packet->timestamp);
 
-	if (observed.size() == collection_interval + 1) {
-		uint64_t removal = observed.front(); // get oldest element
-		observed.pop_front();; // remove oldest element
+	uint64_t entropy_id = observed.front();
+	uint64_t entropy_timestamp = entropy_time.front();
 
-		int n = frequencies.at(removal); // get its frequency
+	while (real_time - entropy_timestamp > collection_interval) {
+		entropy_time.pop_front();
+		observed.pop_front(); // remove oldest element
+
+		int n = frequencies.at(entropy_id); // get its frequency
 
 		if (n != 1) {
 			current_sum -= n * log2(n);
 			current_sum += (n - 1) * log2(n - 1); // update Cs -n*log(n) + (n-1)log(n-1) so -old + new
-			frequencies[removal]--;
+			frequencies[entropy_id]--;
 		} else {
-			frequencies.erase(removal); // Remove elements with 0 frequency, no use from them
+			frequencies.erase(entropy_id); // Remove elements with 0 frequency, no use from them
 		}
 	}
+
 	if (frequencies.find(packet->id) != frequencies.end()) {
 		int n = frequencies[packet->id];
 		current_sum -= n * log2(n);
@@ -154,7 +159,7 @@ void FeatureCollector::clear_data(uint64_t max_interval) {
 }
 
 double FeatureCollector::get_gdsf_feature(uint64_t packet_id) {
-		double size_var = packet_sizes.at(packet_id);
-		double freq = double(total_appearances.at(packet_id));
-		return freq / size_var;
-	}
+	double size_var = packet_sizes.at(packet_id);
+	double freq = double(total_appearances.at(packet_id));
+	return freq / size_var;
+}
