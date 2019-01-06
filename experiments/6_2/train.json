@@ -3,7 +3,7 @@
 
 	"cache size": 512,
 
-	"target": "ML-GDSF",
+	"target": "ML-LRU",
 
 	"batch size": 4096,
 

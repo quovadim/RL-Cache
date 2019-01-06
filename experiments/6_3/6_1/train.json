@@ -1,9 +1,9 @@
 {
 	"data": "china",
 
-	"cache size": 512,
+	"cache size": 1024,
 
-	"target": "ML-LFU",
+	"target": "ML-GDSF",
 
 	"batch size": 4096,
 
@@ -22,7 +22,7 @@
 		"metric type": "correlated"
 	},
 
-	"samples": 500,
+	"samples": 1500,
 	"max samples": 300,
 
 	"percentile admission": 90,

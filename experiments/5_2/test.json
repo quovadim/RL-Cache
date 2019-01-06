@@ -7,18 +7,18 @@
 
 	"drop keys": true,
 
-	"algorithm type": [["ML-LRU", "5_1"]],
-	"compare algorithms": ["SH-LRU", "AL-LRU"],
+	"algorithm type": [["ML-GDSF", "5_2"]],
+	"compare algorithms": ["SH-GDSF", "AL-GDSF"],
 
-	"check size": [10240],
+	"check size": [2048],
 
-	"min size": 10240,
+	"min size": 2048,
 	"max size": 2,
 	"step": 2,
 
 	"period": 300,
 	"reset": true,
-	"alpha": [1],
+	"alpha": [0],
 
 
     "warmup": 200000

@@ -3,17 +3,17 @@
 
 	"seed": 278,
 
-	"max time": 144,
+	"max time": 96,
 
 	"drop keys": true,
 
 	"algorithm type": [["ML-GDSF", "6_1"]],
 	"compare algorithms": ["SH-GDSF", "AL-GDSF"],
 
-	"check size": [1024],
+	"check size": [1024, 2048],
 
-	"min size": 1024,
-	"max size": 3,
+	"min size": 512,
+	"max size": 4,
 	"step": 2,
 
 	"period": 300,

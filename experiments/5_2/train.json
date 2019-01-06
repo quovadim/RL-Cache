@@ -13,20 +13,20 @@
 	{
 		"collect discounted": true,
 		"change": true,
-		"change mode": "regular",
+		"change mode": "random",
 		"seed": 45,
 		"initial gamma": 1.0,
-		"gamma": 0.0001,
+		"gamma": 0.001,
 		"alpha": 0,
 		"use hr": true,
-		"metric type": "decorrelated"
+		"metric type": "correlated"
 	},
 
-	"samples": 1500,
+	"samples": 500,
 	"max samples": 300,
 
-	"percentile admission": 85,
-	"percentile eviction": 85,
+	"percentile admission": 90,
+	"percentile eviction": 90,
 
 	"epochs": 1,
 	"warmup": 100000,
@@ -34,11 +34,11 @@
 	"duplications": 20,
 	"duplicate": false,
 	"refresh period": 1,
-	"repetitions": 1,
-	"drop": true,
-	"store period": 1,
-	"overlap": 50000,
-	"period": 100000,
+	"repetitions": 3,
+	"drop": false,
+	"store period": 2,
+	"overlap": 175000,
+	"period": 200000,
 
 	"refresh policy": "monotonic",
 	"refresh value": 0,
