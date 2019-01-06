@@ -15,112 +15,113 @@ using std::pair;
 using std::log;
 
 void FeatureCollector::update_packet_state(Packet* packet) {
-    logical_time += 1;
-    real_time = packet->timestamp;
+	logical_time += 1;
+	real_time = packet->timestamp;
 
-    uint64_t period = 3600;
+	uint64_t period = 3600;
 
-    time_sequence.push_back(real_time);
-    id_sequence.push_back(packet->id);
-    if (observations.find(packet->id) != observations.end()) {
-    	observations[packet->id]++;
-    } else {
+	time_sequence.push_back(real_time);
+	id_sequence.push_back(packet->id);
+	if (observations.find(packet->id) != observations.end()) {
+		observations[packet->id]++;
+	} else {
 	observations.insert(pair<uint64_t, int>(packet->id, 1));
-    }
-    uint64_t time_old = time_sequence.front();
-    uint64_t id_to_remove = id_sequence.front();
+	}
+	uint64_t time_old = time_sequence.front();
+	uint64_t id_to_remove = id_sequence.front();
 
-    while (real_time - time_old > period) {
+	while (real_time - time_old > period) {
 
-	observations[id_to_remove]--;
-	if (observations[id_to_remove] == 0) {
-	
-		total_appearances.erase(id_to_remove);
-		last_appearance.erase(id_to_remove);
-		logical_time_appearance.erase(id_to_remove);
-		packet_sizes.erase(id_to_remove);
-		exp_recency.erase(id_to_remove);
-		exp_logical.erase(id_to_remove);
-		observations.erase(id_to_remove);
-		delete packet_mapping.at(id_to_remove);
-		packet_mapping.erase(id_to_remove);
-		packets_observed.erase(id_to_remove);
+		observations[id_to_remove]--;
+		if (observations[id_to_remove] == 0) {
+			total_appearances.erase(id_to_remove);
+			last_appearance.erase(id_to_remove);
+			logical_time_appearance.erase(id_to_remove);
+			packet_sizes.erase(id_to_remove);
+			exp_recency.erase(id_to_remove);
+			exp_logical.erase(id_to_remove);
+			observations.erase(id_to_remove);
+			delete packet_mapping.at(id_to_remove);
+			packet_mapping.erase(id_to_remove);
+			packets_observed.erase(id_to_remove);
+		}
+
+		time_sequence.pop_front();
+		id_sequence.pop_front();
+
+		time_old = time_sequence.front();
+		id_to_remove = id_sequence.front();
 	}
 
-	time_sequence.pop_front();
-	id_sequence.pop_front();
+	const int collection_interval = 500000;
 
-	time_old = time_sequence.front();
-	id_to_remove = id_sequence.front();
-    }
+	observed.push_back(packet->id);
 
-    const int collection_interval = 500000;
+	if (observed.size() == collection_interval + 1) {
+		uint64_t removal = observed.front(); // get oldest element
+		observed.pop_front();; // remove oldest element
 
-    observed.push_back(packet->id);
+		int n = frequencies.at(removal); // get its frequency
 
-    if (observed.size() == collection_interval - 1) {
-        uint64_t removal = observed.front(); // get oldest element
-        observed.pop_front();; // remove oldest element
-
-        int n = frequencies.at(removal); // get its frequency
-
-        if (n != 1) {
-            current_sum += -double(n) * log(n) + (n - 1) * log(n - 1); // update Cs -n*log(n) + (n-1)log(n-1) so -old + new
-			frequencies[removal] -= 1;
+		if (n != 1) {
+			current_sum -= n * log2(n);
+			current_sum += (n - 1) * log2(n - 1); // update Cs -n*log(n) + (n-1)log(n-1) so -old + new
+			frequencies[removal]--;
 		} else {
-		    frequencies.erase(removal); // Remove elements with 0 frequency, no use from them
+			frequencies.erase(removal); // Remove elements with 0 frequency, no use from them
 		}
 	}
 	if (frequencies.find(packet->id) != frequencies.end()) {
 		int n = frequencies[packet->id];
-		current_sum += -n * log(n) + (n + 1) * log(n + 1); // update Cs -n*log(n) + (n+1)log(n+1) so -old + new
-		frequencies[packet->id] += 1.;
+		current_sum -= n * log2(n);
+		current_sum += (n + 1) * log2(n + 1); // update Cs -n*log(n) + (n+1)log(n+1) so -old + new
+		frequencies[packet->id]++;
 	} else {
 		frequencies.insert(pair<uint64_t, int>(packet->id, 1));
 	}
 
-    fa = false;
-    if (packets_observed.find(packet->id) == packets_observed.end()) {
-    	packet_mapping.insert(pair<uint64_t, Packet*>(packet->id, packet));
-        packets_observed.emplace(packet->id);
-        total_appearances.insert(pair<uint64_t, uint64_t>(packet->id, 0));
-        last_appearance.insert(pair<uint64_t, uint64_t>(packet->id, packet->timestamp));
-        logical_time_appearance.insert(pair<uint64_t, uint64_t>(packet->id, logical_time));
-        packet_sizes.insert(pair<uint64_t, uint64_t>(packet->id, packet->size));
-        exp_recency.insert(pair<uint64_t, double>(packet->id, -1));
-        exp_logical.insert(pair<uint64_t, double>(packet->id, -1));
-    } else {
-    	delete packet_mapping.at(packet->id);
-    	packet_mapping.at(packet->id) = packet;
-    	if (exp_logical.at(packet->id) < 0) {
-    		exp_logical.at(packet->id) = logical_time - logical_time_appearance.at(packet->id);
-    		exp_recency.at(packet->id) = packet->timestamp - last_appearance.at(packet->id);
-    	} else {
-    		exp_logical.at(packet->id) = exp_logical.at(packet->id) * 0.9 + double(logical_time - logical_time_appearance.at(packet->id)) * 0.1;
-    		exp_recency.at(packet->id) = exp_recency.at(packet->id) * 0.9 + double(packet->timestamp - last_appearance.at(packet->id)) * 0.1;
-    	}
-    }
-    total_appearances.at(packet->id) += 1;
+	fa = false;
+	if (packets_observed.find(packet->id) == packets_observed.end()) {
+		packet_mapping.insert(pair<uint64_t, Packet*>(packet->id, packet));
+		packets_observed.emplace(packet->id);
+		total_appearances.insert(pair<uint64_t, uint64_t>(packet->id, 0));
+		last_appearance.insert(pair<uint64_t, uint64_t>(packet->id, packet->timestamp));
+		logical_time_appearance.insert(pair<uint64_t, uint64_t>(packet->id, logical_time));
+		packet_sizes.insert(pair<uint64_t, uint64_t>(packet->id, packet->size));
+		exp_recency.insert(pair<uint64_t, double>(packet->id, -1));
+		exp_logical.insert(pair<uint64_t, double>(packet->id, -1));
+	} else {
+		delete packet_mapping.at(packet->id);
+		packet_mapping.at(packet->id) = packet;
+		if (exp_logical.at(packet->id) < 0) {
+			exp_logical.at(packet->id) = logical_time - logical_time_appearance.at(packet->id);
+			exp_recency.at(packet->id) = packet->timestamp - last_appearance.at(packet->id);
+		} else {
+			exp_logical.at(packet->id) = exp_logical.at(packet->id) * 0.9 + double(logical_time - logical_time_appearance.at(packet->id)) * 0.1;
+			exp_recency.at(packet->id) = exp_recency.at(packet->id) * 0.9 + double(packet->timestamp - last_appearance.at(packet->id)) * 0.1;
+		}
+	}
+	total_appearances.at(packet->id) += 1;
 }
 
 void FeatureCollector::update_packet_info(Packet* packet) {
 
-    last_appearance.at(packet->id) = packet->timestamp;
-    logical_time_appearance.at(packet->id) = logical_time;
+	last_appearance.at(packet->id) = packet->timestamp;
+	logical_time_appearance.at(packet->id) = logical_time;
 }
 
 vector<int64_t> FeatureCollector::get_packet_features(uint64_t packet_id) {
-    vector<int64_t> result;
-    // Frequency
-    int64_t freq = total_appearances.at(packet_id);
-    result.push_back(freq);
-    // Recency
-    int64_t time_last_app = last_appearance.at(packet_id);
-    result.push_back(time_last_app);
-    // Logical recency
-    int64_t log =  logical_time_appearance.at(packet_id);
-    result.push_back(log);
-    return result;
+	vector<int64_t> result;
+	// Frequency
+	int64_t freq = total_appearances.at(packet_id);
+	result.push_back(freq);
+	// Recency
+	int64_t time_last_app = last_appearance.at(packet_id);
+	result.push_back(time_last_app);
+	// Logical recency
+	int64_t log =  logical_time_appearance.at(packet_id);
+	result.push_back(log);
+	return result;
 }
 
 vector<double> FeatureCollector::get_packet_features_dbl(uint64_t packet_id) {
@@ -132,10 +133,10 @@ vector<double> FeatureCollector::get_packet_features_dbl(uint64_t packet_id) {
 	double exp_log = exp_logical.at(packet_id);
 	result.push_back(exp_log);
 
-    int N = observed.size();
+	int N = observed.size();
 	double entropy = log(N) - current_sum/double(N);
 
-	result.push_back(entropy / N);
+	result.push_back(entropy / frequencies.size());
 
 	return result;
 }
@@ -153,7 +154,7 @@ void FeatureCollector::clear_data(uint64_t max_interval) {
 }
 
 double FeatureCollector::get_gdsf_feature(uint64_t packet_id) {
-    	double size_var = packet_sizes.at(packet_id);
-    	double freq = double(total_appearances.at(packet_id));
-    	return freq / size_var;
-    }
+		double size_var = packet_sizes.at(packet_id);
+		double freq = double(total_appearances.at(packet_id));
+		return freq / size_var;
+	}
