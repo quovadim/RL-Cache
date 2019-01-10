@@ -335,7 +335,7 @@ class PacketFeaturer:
                           packet['number of observations'] != 1,
                           float(packet['number of observations']) *
                           float(packet['size']) / float(1 + self.logical_time),
-                          float(packet['number of observations']) / float(1 + self.logical_time),
+                          float(packet['number of observations']),
                           True]
 
         return np.asarray(feature_vector)
