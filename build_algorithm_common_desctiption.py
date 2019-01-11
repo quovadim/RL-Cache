@@ -5,11 +5,6 @@ import numpy as np
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-from graphs_auxiliary import smooth, build_graphs, build_percentiles, load_dataset, get_number_of_steps
-from configuration_info.config_sanity import check_test_config
-from configuration_info.filestructure import *
-
-
 parser = argparse.ArgumentParser(description='Algorithm tester')
 parser.add_argument("dataset", type=str, help="dataset_suffix")
 parser.add_argument("experiments", type=str, help="dataset_suffix")
@@ -28,6 +23,10 @@ parser.add_argument('-n', '--normed_plots', action='store_true', help="Build nor
 
 args = parser.parse_args()
 
+from graphs_auxiliary import smooth, build_graphs, build_percentiles, load_dataset, get_number_of_steps
+from configuration_info.config_sanity import check_test_config
+from configuration_info.filestructure import *
+
 extension = args.extension
 
 experiments = sorted(args.experiments.split(' '))
@@ -44,6 +43,7 @@ if not os.path.exists(target_data):
 graph_data = None
 time_data = []
 flow_data = []
+entropy_data = []
 names_info = {}
 statistics = {}
 iterations_data = []
@@ -82,8 +82,9 @@ for i in range(len(configs_loaded)):
 
     keys_to_ignore = configuration['classical']
 
-    graph_data_new, time_data_new, flow_data_new, iterations_new, reversal_mapping_new, names_info_new, \
-    statistics_new = load_dataset(folder, args.filename, args.skip, keys_to_ignore, mlength, uid=label)
+    graph_data_new, time_data_new, flow_data_new, iterations_new, entropy_data_new, \
+    reversal_mapping_new, names_info_new, statistics_new = \
+        load_dataset(folder, args.filename, args.skip, keys_to_ignore, mlength, uid=label)
 
     if graph_data is None:
         graph_data = graph_data_new
@@ -92,6 +93,7 @@ for i in range(len(configs_loaded)):
         names_info = names_info_new
         statistics = statistics_new
         iterations_data = iterations_new
+        entropy_data = entropy_data_new
         reversal_mapping = {'OHR': 0}
     else:
         assert time_data == time_data_new
@@ -157,6 +159,7 @@ for key in graph_data.keys():
 
 smoothed_flow_data = smooth(None, args.smooth, None, flow_data, 0, period)
 iterations_data = smooth(None, args.smooth, iterations_data, None, 0, period)
+smoothed_entropy_data = smooth(entropy_data, args.smooth, None, None, 0, period)
 smoothed_time_data = [int(item) for item in smooth(time_data, args.smooth, None, None, 0, period)]
 period *= args.smooth
 
@@ -170,7 +173,7 @@ if args.plots:
             filename = graph_folder + names_info[algorithms_to_build[0]]['text size'] + '_' + alpha + '.' + extension
             title = alpha + ' ' + names_info[algorithms_to_build[0]]['text size']
             print '\tBuilding', filename
-            build_graphs(smoothed_graph_data, smoothed_time_data, smoothed_flow_data,
+            build_graphs(smoothed_graph_data, smoothed_time_data, smoothed_entropy_data,
                          alpha, algorithms_to_build, filename, title, extension)
 
 if args.normed_plots:

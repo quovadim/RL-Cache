@@ -2,16 +2,19 @@
 CPP_SRCS += \
 Environment.cpp \
 FeatureCollector.cpp \
+InfoCollector.cpp \
 main.cpp 
 
 OBJS += \
 ./Environment.o \
 ./FeatureCollector.o \
+./InfoCollector.o \
 ./main.o 
 
 CPP_DEPS += \
 ./Environment.d \
 ./FeatureCollector.d \
+./InfoCollector.d \
 ./main.d 
 
 

@@ -9,6 +9,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <deque>
+#include <math.h>
 #include "Packet.h"
 
 using std::map;
@@ -20,6 +21,7 @@ using std::cerr;
 using std::endl;
 using std::min;
 using std::deque;
+using std::log2;
 
 class FeatureCollector{
 public:
@@ -72,6 +74,11 @@ public:
 	double get_gdsf_feature(uint64_t packet_id);
 
 	void clear_data(uint64_t max_interval);
+
+    double get_entropy() {
+        int N = observed.size();
+	    return log2(N) - current_sum/double(N);
+    }
 
 private:
 

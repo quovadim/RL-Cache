@@ -29,7 +29,7 @@
 	"percentile eviction": 90,
 
 	"epochs": 1,
-	"warmup": 200000,
+	"warmup": 1000000,
 	"runs": 50,
 	"duplications": 20,
 	"duplicate": false,

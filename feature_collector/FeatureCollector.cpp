@@ -12,7 +12,7 @@ using std::find;
 using std::min;
 using std::max;
 using std::pair;
-using std::log;
+using std::log2;
 
 void FeatureCollector::update_packet_state(Packet* packet) {
 	logical_time += 1;
@@ -58,11 +58,12 @@ void FeatureCollector::update_packet_state(Packet* packet) {
 	observed.push_back(packet->id);
 	entropy_time.push_back(packet->timestamp);
 
-	uint64_t entropy_id = observed.front();
+    uint64_t entropy_id = observed.front();
 	uint64_t entropy_timestamp = entropy_time.front();
 
 	while (real_time - entropy_timestamp > collection_interval) {
-		entropy_time.pop_front();
+	    //cerr << "Here " << entropy_id << " " << entropy_time.size() << endl;
+	    entropy_time.pop_front();
 		observed.pop_front(); // remove oldest element
 
 		int n = frequencies.at(entropy_id); // get its frequency
@@ -74,6 +75,8 @@ void FeatureCollector::update_packet_state(Packet* packet) {
 		} else {
 			frequencies.erase(entropy_id); // Remove elements with 0 frequency, no use from them
 		}
+		entropy_id = observed.front();
+	    entropy_timestamp = entropy_time.front();
 	}
 
 	if (frequencies.find(packet->id) != frequencies.end()) {
@@ -138,10 +141,9 @@ vector<double> FeatureCollector::get_packet_features_dbl(uint64_t packet_id) {
 	double exp_log = exp_logical.at(packet_id);
 	result.push_back(exp_log);
 
-	int N = observed.size();
-	double entropy = log(N) - current_sum/double(N);
+	double entropy = get_entropy();
 
-	result.push_back(entropy / frequencies.size());
+	result.push_back(entropy);
 
 	return result;
 }

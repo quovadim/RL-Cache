@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from os import listdir
 from os.path import isfile, join
 import pickle
+import pandas as pd
 
 import matplotlib.dates as md
 import datetime as dt
@@ -133,37 +134,55 @@ def sample_values(data, mval):
     return np.asarray([np.random.choice(range(0, mval), p=item/sum(item)) for item in tqdm(data)])
 
 
-def smooth(data, factor, iterations, flow, alpha, interval):
-    data_new = []
-    if data is None:
-        if flow is not None:
-            new_flow = []
-            for i in range(0, len(flow), factor):
-                dist = min(i + factor, len(flow)) - i
-                new_flow.append(sum(flow[i:i+dist]) * interval / (dist * interval))
-            return new_flow
-        if iterations is not None:
-            new_iterations = []
-            for i in range(0, len(iterations), factor):
-                dist = min(i + factor, len(iterations)) - i
-                new_iterations.append(sum(iterations[i:i + dist]))
-            return new_iterations
-        return None
+def smooth(data, factor, interval):
+    iterations = 'iterations' in data.keys()
+    flow = 'flow' in data.keys()
+    entropy = 'entropy' in data.keys()
+    time = 'time' in data.keys()
 
-    for i in range(0, len(data), factor):
-        dist = min(i + factor, len(data)) - i
-        data_elements = data[i:i + dist]
-        if iterations is not None and (alpha == 1 or alpha == 0):
-            if alpha == 1:
-                normalization_elements = [item * interval for item in flow[i:i + dist]]
-            else:
-                normalization_elements = iterations[i:i + dist]
-            data_elements = [data_elements[j] * normalization_elements[j] for j in range(dist)]
-            new_data_value = sum(data_elements) / sum(normalization_elements)
-        else:
-            new_data_value = np.mean(data_elements)
-        data_new.append(new_data_value)
-    return data_new
+    for key in data['performance'].keys():
+        for alpha in data['performance'][key].keys():
+            new_data = []
+            local_data = data['performance'][key][alpha]
+            for i in range(0, len(local_data), factor):
+                dist = min(i + factor, len(local_data)) - i
+                data_elements = local_data[i:i + dist]
+                normalization_elements = [1] * len(data_elements)
+                if iterations and alpha == 'OHR':
+                    normalization_elements = data['iterations'][i:i + dist]
+                if flow and alpha == 'BHR':
+                    normalization_elements = [item * interval for item in data['flow'][i:i + dist]]
+
+                data_elements = [data_elements[j] * normalization_elements[j] for j in range(dist)]
+                new_data.append(sum(data_elements) / sum(normalization_elements))
+            data['performance'][key][alpha] = new_data
+
+    if flow:
+        new_flow = []
+        for i in range(0, len(data['flow']), factor):
+            dist = min(i + factor, len(data['flow'])) - i
+            new_flow.append(sum(data['flow'][i:i+dist]) * interval / (dist * interval))
+        data['flow'] = new_flow
+    if iterations:
+        new_iterations = []
+        for i in range(0, len(data['iterations']), factor):
+            dist = min(i + factor, len(data['iterations'])) - i
+            new_iterations.append(sum(data['iterations'][i:i + dist]))
+        data['iterations'] = new_iterations
+    if entropy:
+        new_row = []
+        for i in range(0, len(data['entropy']), factor):
+            dist = min(i + factor, len(data['entropy'])) - i
+            new_row.append(np.mean(data['entropy'][i:i + dist]))
+        data['entropy'] = new_row
+    if time:
+        new_row = []
+        for i in range(0, len(data['time']), factor):
+            dist = min(i + factor, len(data['time'])) - i
+            new_row.append(np.mean(data['time'][i:i + dist]))
+        data['time'] = new_row
+
+    return data
 
 
 def get_number_of_steps(filepath, filename, skip):
@@ -181,90 +200,103 @@ def load_data(filepath, filename, skip, max_length=None, uid=''):
     file_names = sorted(file_names, key=lambda x: x[1])
     file_names = [item[0] for item in file_names]
 
-    time_data = []
-    flow_data = []
-    iterations_data = []
-    alphas = None
-    graph_data = {}
-
     if uid != '':
         uid = '-' + uid
 
     if max_length is not None:
         file_names = file_names[:max_length]
 
-    seen_keys = []
+    flow_data_keys = ['time', 'flow', 'alphas', 'iterations', 'entropy']
+
+    data = {'performance': {},
+            'time': [],
+            'flow': [],
+            'entropy': [],
+            'iterations': [],
+            'alphas': None}
+
+    keys_to_drop = set()
+
+    single_value_keys = ['flow', 'iterations', 'entropy']
 
     for filename in file_names[skip:]:
         od = pickle.load(open(filename, 'r'))
-        if alphas is None:
-            alphas = od['alphas']
+
+        data['alphas'] = od['alphas']
+
         for key in od.keys():
-            if key == 'time' or key == 'flow' or key == 'alphas' or key == 'iterations':
+            if key in flow_data_keys:
                 continue
-            if key not in seen_keys:
-                graph_data[key + uid] = []
-                seen_keys.append(key)
-            graph_data[key + uid] += od[key]
+            if key not in data['performance'].keys():
+                data['performance'][key + uid] = []
+            data['performance'][key + uid] += od[key]
 
-        time_data += od['time']
-        flow_data.append(od['flow'])
-        if 'iterations' in od.keys():
-            iterations_data.append(od['iterations'])
+        if 'time' in od.keys():
+            data['time'] += od['time']
+        else:
+            keys_to_drop.add('time')
 
-    if alphas is None:
-        alphas = [-1.]
+        for key in single_value_keys:
+            if key in od.keys():
+                data[key].append(od[key])
+            else:
+                keys_to_drop.add(key)
+
+    for key in keys_to_drop:
+        del data[key]
+
+    if data['alphas'] is None:
+        data['alphas'] = [-1.]
 
     alphas_mapping = {-1.: 'UNKNOWN', 1.: 'BHR', 0.5: 'EQMix', 0.: 'OHR'}
     alphas_text = []
-    for alpha in alphas:
+    for alpha in data['alphas']:
         if alpha not in alphas_mapping.keys():
             alphas_mapping[alpha] = 'UN' + str(alpha)
         alphas_text.append(alphas_mapping[alpha])
-    reversal_mapping = dict(zip(alphas_text, alphas))
+    data['mapping'] = dict(zip(alphas_text, data['alphas']))
+
     graph_data_transposed = {}
 
-    for key in graph_data.keys():
-        data = graph_data[key]
+    for key in data['performance'].keys():
+        local_data = data['performance'][key]
         alphas_data = {}
         for i in range(len(alphas_text)):
-            alphas_data[alphas_text[i]] = [item[i] for item in data]
+            alphas_data[alphas_text[i]] = [item[i] for item in local_data]
         graph_data_transposed[key] = alphas_data
-    graph_data = graph_data_transposed
+    data['performance'] = graph_data_transposed
 
-    if not iterations_data:
-        iterations_data = None
-
-    return graph_data, time_data, flow_data, iterations_data, reversal_mapping
+    return data
 
 
 def load_dataset(folder, filename, skip, keys_to_ignore, max_length=None, uid=''):
-    graph_data, time_data, flow_data, iterations_data, reversal_mapping = load_data(
-        folder, filename, skip, max_length, uid)
-    time_data = [int(item) for item in time_data]
-    flow_data = flow_data
+    data = load_data(folder, filename, skip, max_length, uid)
 
     if uid != '':
         uid = '-' + uid
 
     keys_to_ignore = [key + uid for key in keys_to_ignore]
 
-    keys = [key for key in graph_data.keys() if key not in keys_to_ignore]
+    keys = [key for key in data['performance'].keys() if key not in keys_to_ignore]
     for key in keys_to_ignore:
-        del graph_data[key]
+        del data['performance'][key]
 
     names_info = {}
     for key in keys:
         names_info[key] = name2class(key)
 
+    data['info'] = names_info
+
     print '...Done'
     statistics = {}
     for key in keys:
         statistics[key] = {}
-        for alpha in graph_data[key].keys():
-            statistics[key][alpha] = get_stats(graph_data[key][alpha])
+        for alpha in data['performance'][key].keys():
+            statistics[key][alpha] = get_stats(data['performance'][key][alpha])
 
-    return graph_data, time_data, flow_data, iterations_data, reversal_mapping, names_info, statistics
+    data['statistics'] = statistics
+
+    return data
 
 
 def get_stats(data_vector):
@@ -282,10 +314,10 @@ def get_stats(data_vector):
     return dict(zip(statistics_names, statistics_vector))
 
 
-def build_graphs(graph_data, time_data, flow_data, alpha, keys, filename, title, extension):
+def build_graphs(data, alpha, keys, filename, title, extension):
     fig, ax = plt.subplots()
 
-    accumulated_time = [dt.datetime.fromtimestamp(ts) for ts in time_data]
+    accumulated_time = [dt.datetime.fromtimestamp(ts) for ts in data['time']]
     xfmt = md.DateFormatter('%H:%M:%S')
     ax.xaxis.set_major_formatter(xfmt)
 
@@ -294,13 +326,13 @@ def build_graphs(graph_data, time_data, flow_data, alpha, keys, filename, title,
     names_mappings = compress_names(keys)
 
     for key in sorted(keys):
-        data_selected = 100 * np.asarray(graph_data[key][alpha])
+        data_selected = 100 * np.asarray(data['performance'][key][alpha])
         ax.plot(accumulated_time, data_selected, label=names_mappings[key])
         print names_mappings[key], np.mean(data_selected)
 
     ax2 = ax.twinx()
     ax2.xaxis.set_major_formatter(xfmt)
-    ax2.plot(accumulated_time, 8 * np.asarray(flow_data) / (1024 * 1024 * 1024), label='Flow', lw=7, alpha=0.4)
+    ax2.plot(accumulated_time, np.asarray(data['flow']) / 1e9, label='Flow', lw=7, alpha=0.4)
     ax2.set_ylabel('GbpS per second')
 
     fig.autofmt_xdate()
@@ -314,8 +346,8 @@ def build_graphs(graph_data, time_data, flow_data, alpha, keys, filename, title,
     plt.close(fig)
 
 
-def build_barchart(names_info, statistics, keys, alpha, target_name, filename, extension):
-    sizes = list(enumerate(set([names_info[key]['size'] for key in keys])))
+def build_barchart(data, keys, alpha, target_name, filename, extension):
+    sizes = list(enumerate(set([data['info'][key]['size'] for key in keys])))
     assert len(sizes) != 0
     sizes = sorted(sizes, key=lambda x: x[1])
     order, sizes = zip(*sizes)
@@ -325,8 +357,8 @@ def build_barchart(names_info, statistics, keys, alpha, target_name, filename, e
     for i in order:
         size = sizes[i]
 
-        keys_simplified = sorted([names_info[key]['unsized name'] for key in
-                                  keys if names_info[key]['size'] == size])
+        keys_simplified = sorted([data['info'][key]['unsized name'] for key in
+                                  keys if data['info'][key]['size'] == size])
 
         assert len(keys_simplified) == len(set(keys_simplified))
 
@@ -349,12 +381,12 @@ def build_barchart(names_info, statistics, keys, alpha, target_name, filename, e
     index = np.arange(n_groups)
     for i in range(len(keys_lightweight)):
         lwc = keys_lightweight[i]
-        keys_for_lws = [(key, names_info[key]['size'])
-                        for key in keys if names_info[key]['unsized name'] == lwc]
+        keys_for_lws = [(key, data['info'][key]['size'])
+                        for key in keys if data['info'][key]['unsized name'] == lwc]
         keys_for_lws = zip(*sorted(keys_for_lws, key=lambda x: x[1]))[0]
-        target = [statistics[key][alpha][target_name] for key in keys_for_lws]
+        target = [data['statistics'][key][alpha][target_name] for key in keys_for_lws]
         if target_name == 'mean':
-            size_std = [statistics[key][alpha]['std'] for key in keys_for_lws]
+            size_std = [data['statistics'][key][alpha]['std'] for key in keys_for_lws]
         else:
             size_std = None
         ax.bar(index + widths[i], target, width, yerr=size_std, label=lwc, alpha=0.8)
@@ -368,11 +400,11 @@ def build_barchart(names_info, statistics, keys, alpha, target_name, filename, e
     plt.close(fig)
 
 
-def build_percentiles(names_info, statistics, keys, alphas, output_folder, extension):
+def build_percentiles(data, keys, alphas, output_folder, extension):
     for alpha in alphas:
         for stat_name in statistics_names:
             if stat_name == 'std':
                 continue
             stat_name_fixed = stat_name.replace(' ', '').replace('%', '')
             filename = output_folder + alpha + '_' + stat_name_fixed + '.' + extension
-            build_barchart(names_info, statistics, keys, alpha, stat_name, filename, extension)
+            build_barchart(data, keys, alpha, stat_name, filename, extension)

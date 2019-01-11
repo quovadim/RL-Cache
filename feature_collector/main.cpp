@@ -15,6 +15,7 @@
 using namespace std;
 using std::cerr;
 using std::endl;
+using std::string;
 
 #include <ctime>
 

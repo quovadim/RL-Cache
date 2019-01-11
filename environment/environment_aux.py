@@ -623,8 +623,9 @@ def test_algorithms(algorithms,
 
     total_size = sum([row['size'] for row in rows])
     total_time = rows[len(rows) - 1]['timestamp'] - rows[0]['timestamp']
+    mean_entropy = np.mean([row['entropy'] for row in rows])
 
-    history = {'time': [], 'flow': 0, 'alphas': alpha, 'iterations': len(rows)}
+    history = {'time': [], 'flow': 0, 'alphas': alpha, 'iterations': len(rows), 'entropy': mean_entropy}
     keys = sorted(algorithms.keys())
 
     if keys_to_print is None:

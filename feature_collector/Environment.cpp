@@ -4,6 +4,7 @@
 
 #include "Environment.h"
 #include "Packet.h"
+#include "InfoCollector.h"
 #include <sstream>
 #include <string>
 #include <istream>
@@ -28,15 +29,16 @@ using std::log;
 using std::setw;
 
 
-double shrink(double value, int multiplier) {
-    int integer = multiplier * value;
-    return double(integer) / multiplier;
-}
-
-
 void Environment::calculate_features(string& prefix_input, string& prefix_output, uint64_t files) {
 	uint64_t latest_time = 0;
 	uint64_t tcounter = 0;
+
+	InfoCollector info_collector;
+
+	ofstream ch_stream;
+	ch_stream.open(prefix_input + "../characteristics_" + to_string(files));
+
+	uint64_t start_time = 0;
 
 	for (uint64_t i = 0; i < files; i++) {
 		vector<Packet*> dataset;
@@ -48,14 +50,29 @@ void Environment::calculate_features(string& prefix_input, string& prefix_output
 			if (current_packet->timestamp < latest_time)
 				continue;
 
+			if (!start_time) {
+			    start_time = current_packet->timestamp;
+			}
+
 			latest_time = current_packet->timestamp;
 
 			collector->update_packet_state(current_packet);
-			if (j % 1000 == 0) {
-				cerr << "\rFile " << prefix_output + to_string(i) + ".csv" <<
-				" Local " << std::setw(10) << j / 1000 << "K" <<
-				" Total " << std::setw(10) << tcounter / 1000 << "K" <<
-				" Story " << std::setw(10) << collector->total_items() / 1000 << "K";
+			info_collector.update_info(current_packet);
+			if (j % 1687 == 0) {
+				cerr << std::fixed << std::setprecision(1) <<
+				"\rFile " << to_string(i) + ".csv" <<
+				" |  Time  " << std::setw(10) << timestamp_cnv(latest_time - start_time) <<
+				" |  Local " << std::setw(6) << shrink(j, 1000) << v2k(j, 1000) <<
+				" |  UB " << std::setw(10) << shrink(info_collector.get_unique_bytes(), 1024) <<
+				v2k(info_collector.get_unique_bytes(), 1024) <<
+				" |  B " << std::setw(10) << shrink(info_collector.get_bytes(), 1024) <<
+				v2k(info_collector.get_bytes(), 1024) <<
+				" |  UR " << std::setw(10) << shrink(info_collector.get_unique_requests(), 1000) <<
+				v2k(info_collector.get_unique_requests(), 1000) <<
+				" |  R " << std::setw(10) << shrink(info_collector.get_requests(), 1000) <<
+				v2k(info_collector.get_requests(), 1000) << std::setprecision(5) <<
+				" |  Total Entropy " << std::setw(10) << info_collector.get_entropy() <<
+				" |  Local Entropy " << std::setw(10) << collector->get_entropy();
 			}
 
 			stream << current_packet->timestamp << " " << current_packet->id << " " << current_packet->size;
@@ -74,6 +91,15 @@ void Environment::calculate_features(string& prefix_input, string& prefix_output
 		}
 		stream.close();
 	}
+
+	ch_stream << "Total " << tcounter << endl <<
+	"UB " << info_collector.get_unique_bytes() << endl <<
+	"B " << info_collector.get_bytes() << endl <<
+	"UR " << info_collector.get_unique_requests() << endl <<
+	"R " << info_collector.get_requests() << endl <<
+	"Entropy " << info_collector.get_entropy() << endl <<
+	"Time " << latest_time - start_time;
+	ch_stream.close();
 }
 
 vector<Packet*> Environment::iterate_csv(string filename) {

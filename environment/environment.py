@@ -90,12 +90,11 @@ def test(config, o_file_generator):
                 print 'Collected: {:d}'.format(len(current_rows)), \
                     'Traffic flow {:s}bpS'.format(
                         fsize(8 * trace_collected_size / (end_time - trace_beginning_time))), \
-                    'Entropy : {:f}'.format(10000 * np.mean([item['entropy'] for item in current_rows])), \
+                    'Entropy : {:f}'.format(np.mean([item['entropy'] for item in current_rows])), \
                     'RL', to_ts(real_time_left), \
                     'RS', to_ts(real_time_spent), \
                     'VL', to_ts(virt_time_left), \
                     'VS', to_ts(virt_time_spent)
-
 
             for featurer in featurers:
                 feature_set = featurer.gen_feature_set(current_rows)
