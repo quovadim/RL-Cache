@@ -32,7 +32,6 @@
 	"warmup": 200000,
 	"runs": 50,
 	"duplications": 20,
-	"duplicate": false,
 	"refresh period": 4,
 	"repetitions": 2,
 	"drop": false,

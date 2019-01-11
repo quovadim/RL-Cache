@@ -96,13 +96,6 @@
 		"default": 10
 	},
 
-	"duplicate":   {
-		"interval": null,
-		"recommendation": null,
-		"required": false,
-		"default": false
-	},
-
 	"refresh period":  {
 		"interval": [0, null],
 		"recommendation": [3, null],

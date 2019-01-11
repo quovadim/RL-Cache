@@ -231,50 +231,30 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
         config['train history'] = open(config['train history'], 'w')
         logging = True
 
-    duplicate = config['duplicate']
+    while iteration <= runs and duplication != 0:
 
-    while iteration <= runs:
-
-        if not duplicate and iteration > runs:
+        if iteration > runs:
             iteration = 0
             refresh_value = config['refresh value']
             warming_to_required_state = False
             additional_warming = 0
             empty_loops = 0
-
+            duplication -= 1
             continue
 
         if logging:
             write_run(config['train history'], iteration)
 
-        cache_size_str = hurry_fsize(cache_size)
-        if duplication != 0 and duplicate:
-            print_string = 'Using \033[1m\033[94m{:s} cache up to {:s}\033[0m ' \
-                           'next duplication in \033[1m{:d}/{:d}\033[0m ' \
-                           'duplications left \033[1m{:d}/{:d}\033[0m ' \
-                           'period \033[1m{:d}/{:d}\033[0m ' \
-                           'samples \033[1m{:d}/{:d}\033[0m ' \
-                           'seed \033[1m{:d}\033[0m ' \
-                           'step \033[1m{:d}\033[0m ' \
-                           'alpha \033[1m{:f}\033[0m'
-            insertion = [cache_size_str, hurry_fsize(cache_size + initial_cache_size * duplication),
-                         runs - iteration, runs,
-                         duplication, total_duplications,
-                         period, period + initial_prediod * duplication,
-                         samples, samples + initial_samples * duplication,
-                         config['session configuration']['seed'], step, alpha]
-
-        else:
-            print_string = 'Using \033[1m\033[94m{:s} \033[0mcache ' \
-                           'done in \033[1m{:d}\033[0m ' \
-                           'repeats \033[1m{:d}\033[0m ' \
-                           'period \033[1m{:d}\033[0m ' \
-                           'samples \033[1m{:d}\033[0m ' \
-                           'seed \033[1m{:d}\033[0m ' \
-                           'step \033[1m{:d}\033[0m ' \
-                           'alpha \033[1m{:f}\033[0m'
-            insertion = [hurry_fsize(cache_size), runs - iteration, duplication, period, samples,
-                         config['session configuration']['seed'], step, alpha]
+        print_string = 'Using \033[1m\033[94m{:s} \033[0mcache '\
+                       'done in \033[1m{:d}\033[0m '\
+                       'repeats \033[1m{:d}\033[0m '\
+                       'period \033[1m{:d}\033[0m '\
+                       'samples \033[1m{:d}\033[0m '\
+                       'seed \033[1m{:d}\033[0m '\
+                       'step \033[1m{:d}\033[0m '\
+                       'alpha \033[1m{:f}\033[0m'
+        insertion = [hurry_fsize(cache_size), runs - iteration, duplication, period, samples,
+                     config['session configuration']['seed'], step, alpha]
 
         print print_string.format(*insertion), \
             'Time spent\033[1m', to_ts(int(real_time()) - real_start_time), '\033[0m', \
@@ -283,18 +263,6 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
         latest_start_time = int(real_time())
 
         print '\033[93m' + ''.join(['-'] * 180) + '\033[0m'
-
-        if duplicate and duplication != 0 and iteration > runs:
-            #cache_size += initial_cache_size
-            duplication -= 1
-            iteration = 0
-            #runs += initial_runs
-            #period += initial_prediod
-            #overlap += initial_prediod
-            #samples += initial_samples
-            #refresh_value = config['refresh value']
-            print '\033[91mDUPLICATION\033[0m'
-            continue
 
         current_rows = []
 

@@ -96,6 +96,13 @@ unique_periods = list(set(periods.values()))
 assert len(unique_periods) == 1
 period = unique_periods[0]
 
+if 'entropy' in data.keys() and 'flow' in data.keys():
+    print 'entropy', 'flow', np.corrcoef(data['flow'], data['entropy'])[0][1]
+    keys_mapping = [(key, data['info'][key]['size']) for key in data['performance'].keys()]
+    for key, size in sorted(keys_mapping, key=lambda x: x[1]):
+        for alpha in data['performance'][key].keys():
+            print 'entropy', key, alpha, np.corrcoef(data['performance'][key][alpha], data['entropy'])[0][1]
+
 if args.percentiles:
     print 'Building percentiles'
     percentiles_folder = target_data + 'percentiles/'
