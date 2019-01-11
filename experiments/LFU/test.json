@@ -3,8 +3,6 @@
 
 	"seed": 278,
 
-	"max time": 48,
-
 	"drop keys": true,
 
 	"algorithm type": [["AL-LFU", null], ["SH-LFU", null]],

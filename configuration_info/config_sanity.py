@@ -359,8 +359,6 @@ def check_test_config(experiment_name, test_name, tabulation='', verbose=True):
                     config['testable'].append(name)
         config['algorithms'] = algorithms
 
-    config['max time'] *= 3600
-
     response = load_caching_algorithms(config['algorithms'], tabulation, verbose)
     if response is None:
         return None

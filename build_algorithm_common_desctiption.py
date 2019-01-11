@@ -40,19 +40,9 @@ if args.remove:
 if not os.path.exists(target_data):
     os.makedirs(target_data)
 
-graph_data = None
-time_data = []
-flow_data = []
-entropy_data = []
-names_info = {}
-statistics = {}
-iterations_data = []
-reversal_mapping = {}
+data = None
 
-mlength = None
-
-max_size = 2 * 1024
-min_size = 512
+common_length = None
 
 print 'Loading data...'
 
@@ -66,10 +56,10 @@ for experiment in experiments:
     folder = configuration["output folder"] + '/'
 
     steps = get_number_of_steps(folder, args.filename, args.skip)
-    if mlength is None or mlength > steps:
-        mlength = steps
+    if common_length is None or common_length > steps:
+        common_length = steps
 
-print 'Maximum number of files to use is', mlength
+print 'Maximum number of files to use is', common_length
 
 periods = {}
 
@@ -82,19 +72,10 @@ for i in range(len(configs_loaded)):
 
     keys_to_ignore = configuration['classical']
 
-    graph_data_new, time_data_new, flow_data_new, iterations_new, entropy_data_new, \
-    reversal_mapping_new, names_info_new, statistics_new = \
-        load_dataset(folder, args.filename, args.skip, keys_to_ignore, mlength, uid=label)
+    data_new = load_dataset(folder, args.filename, args.skip, keys_to_ignore, common_length, uid=label)
 
-    if graph_data is None:
-        graph_data = graph_data_new
-        time_data = time_data_new
-        flow_data = flow_data_new
-        names_info = names_info_new
-        statistics = statistics_new
-        iterations_data = iterations_new
-        entropy_data = entropy_data_new
-        reversal_mapping = {'OHR': 0}
+    if data is None:
+        data = data_new
     else:
         assert time_data == time_data_new
         assert flow_data == flow_data_new

@@ -13,12 +13,38 @@ def iterate_dataset(filenames):
         hdlr = open(fname, 'r')
 
         for line in hdlr:
-            lines_converted = line.split(' ')
-            lines_converted = [types[i](lines_converted[i]) for i in range(len(lines_converted))]
-            lines_converted += [0] * len(names[len(lines_converted):])
-            yield dict(zip(names, lines_converted))
+            line_converted = line.split(' ')
+            line_converted = [types[i](line_converted[i]) for i in range(len(line_converted))]
+            line_converted += [0] * len(names[len(line_converted):])
+            yield dict(zip(names, line_converted))
 
         hdlr.close()
+
+
+def get_trace_length(filenames):
+    start_fname = filenames[0]
+    names = PacketFeaturer.core_feature_names
+    types = PacketFeaturer.feature_types
+    hdlr = open(start_fname, 'r')
+
+    line = hdlr.readline()
+    line_converted = line.split(' ')
+    line_converted = [types[i](line_converted[i]) for i in range(len(line_converted))]
+    line_converted += [0] * len(names[len(line_converted):])
+    start_data = dict(zip(names, line_converted))
+    hdlr.close()
+
+    end_fname = filenames[len(filenames) - 1]
+    hdlr = open(end_fname, 'r')
+
+    line = hdlr.readlines()
+    line = line[len(line) - 1]
+    line_converted = line.split(' ')
+    line_converted = [types[i](line_converted[i]) for i in range(len(line_converted))]
+    line_converted += [0] * len(names[len(line_converted):])
+    end_data = dict(zip(names, line_converted))
+    hdlr.close()
+    return end_data['timestamp'] - start_data['timestamp']
 
 
 def split_feature(feature, perc_steps):

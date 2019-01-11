@@ -1,4 +1,4 @@
-from feature.extractor import PacketFeaturer, iterate_dataset
+from feature.extractor import PacketFeaturer, iterate_dataset, get_trace_length
 
 from environment_aux import *
 from model import *
@@ -21,6 +21,8 @@ def test(config, o_file_generator):
     file_counter = 0
 
     filenames = collect_filenames(config['data folder'])
+
+    max_time_diff = get_trace_length(filenames)
 
     np.random.seed(config['seed'])
     random.seed(config['seed'])
@@ -47,8 +49,6 @@ def test(config, o_file_generator):
 
     trace_beginning_time = None
     trace_collected_size = 0
-
-    max_time_diff = config["max time"]
 
     real_start_time = int(real_time())
 

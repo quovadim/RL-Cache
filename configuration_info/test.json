@@ -13,13 +13,6 @@
 		"default": null
 	},
 
-	"max time": {
-		"interval": [1, null],
-		"recommendation": [12, 96],
-		"required": false,
-		"default": 48
-	},
-
 	"drop keys": {
 		"interval": null,
 		"recommendation": null,

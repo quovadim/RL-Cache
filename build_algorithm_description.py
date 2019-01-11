@@ -1,6 +1,14 @@
 import os
 import argparse
 import numpy as np
+from scipy import signal, fftpack
+
+
+def get_max_correlation(original, match):
+    z = signal.fftconvolve(original, match[::-1])
+    lags = np.arange(z.size) - (len(match) - 1)
+    return np.abs(z)
+
 
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -54,10 +62,12 @@ data = load_dataset(folder, args.filename, args.skip, keys_to_ignore)
 
 if 'entropy' in data.keys() and 'flow' in data.keys():
     print 'entropy', 'flow', np.corrcoef(data['flow'], data['entropy'])[0][1]
+    #print 'entropy', 'flow', get_max_correlation(data['flow'], data['entropy'])
     keys_mapping = [(key, data['info'][key]['size']) for key in data['performance'].keys()]
     for key, size in sorted(keys_mapping, key=lambda x: x[1]):
         for alpha in data['performance'][key].keys():
             print 'entropy', key, alpha, np.corrcoef(data['performance'][key][alpha], data['entropy'])[0][1]
+            #print 'entropy', key, alpha, get_max_correlation(data['performance'][key][alpha], data['entropy'])
 
 if args.percentiles:
     percentile_keys = [key for key in data['performance'].keys() if key not in keys_to_ignore]
