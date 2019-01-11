@@ -10,8 +10,8 @@
 
 	"check size": [1024],
 
-	"min size": 512,
-	"max size": 3,
+	"min size": 256,
+	"max size": 6,
 	"step": 2,
 
 	"period": 300,

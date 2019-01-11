@@ -8,15 +8,15 @@
 	"algorithm type": [["AL-LFU", null], ["SH-LFU", null]],
 	"compare algorithms": [],
 
-	"check size": [],
+	"check size": [1024],
 
-	"min size": 512,
-	"max size": 7,
+	"min size": 256,
+	"max size": 6,
 	"step": 2,
 
 	"period": 300,
 	"reset": true,
-	"alpha": [0, 1],
+	"alpha": [0],
 
     "warmup": 200000
 }

@@ -227,7 +227,7 @@ def load_data(filepath, filename, skip, max_length=None, uid=''):
         for key in od.keys():
             if key in flow_data_keys:
                 continue
-            if key not in data['performance'].keys():
+            if key + uid not in data['performance'].keys():
                 data['performance'][key + uid] = []
             data['performance'][key + uid] += od[key]
 

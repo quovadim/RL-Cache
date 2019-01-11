@@ -123,27 +123,16 @@ def name2class(name):
     operational_mode = ''
     uid = ''
     size = 0
-    if len(name) == 3:
+    for item in name[2:]:
         try:
-            size = int(name[2])
+            size = int(item)
+            continue
         except ValueError:
-            if name[2] in ['DET', 'RNG']:
-                operational_mode = name[2]
-            else:
-                uid = name[2]
-
-    if len(name) >= 4:
-        operational_mode = name[2]
-        try:
-            size = int(name[3])
-        except ValueError:
-            uid = name[3]
-
-    if len(name) == 5:
-        uid = name[4]
-
-    if len(name) > 5:
-        assert False
+            pass
+        if item in ['DET', 'RNG']:
+            operational_mode = item
+            continue
+        uid = item
 
     randomness_type = operational_mode == 'RNG'
 
