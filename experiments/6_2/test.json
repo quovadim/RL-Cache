@@ -14,7 +14,7 @@
 	"max size": 6,
 	"step": 2,
 
-	"period": 300,
+	"period": 60,
 	"reset": true,
 	"alpha": [0],
 
