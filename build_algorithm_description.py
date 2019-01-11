@@ -1,5 +1,6 @@
 import os
 import argparse
+import numpy as np
 
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -18,6 +19,8 @@ parser.add_argument('-e', '--remove', action='store_true', help="Remove previous
 
 parser.add_argument('-l', '--plots', action='store_true', help="Build sizes graphs")
 parser.add_argument('-p', '--percentiles', action='store_true', help="Build size-aware percentiles")
+
+parser.add_argument('-b', '--background', type=str, default=None, help='Background plot')
 
 args = parser.parse_args()
 
@@ -49,6 +52,13 @@ print 'Loading data...'
 
 data = load_dataset(folder, args.filename, args.skip, keys_to_ignore)
 
+if 'entropy' in data.keys() and 'flow' in data.keys():
+    print 'entropy', 'flow', np.corrcoef(data['flow'], data['entropy'])[0][1]
+    keys_mapping = [(key, data['info'][key]['size']) for key in data['performance'].keys()]
+    for key, size in sorted(keys_mapping, key=lambda x: x[1]):
+        for alpha in data['performance'][key].keys():
+            print 'entropy', key, alpha, np.corrcoef(data['performance'][key][alpha], data['entropy'])[0][1]
+
 if args.percentiles:
     percentile_keys = [key for key in data['performance'].keys() if key not in keys_to_ignore]
     print 'Building percentiles'
@@ -66,6 +76,8 @@ if not os.path.exists(graph_folder):
 
 if args.smooth != 1:
     smoothed_data = smooth(data, args.smooth, configuration['period'])
+else:
+    smoothed_data = data
 
 print 'Building graphs'
 sizes = list(set([data['info'][key]['size'] for key in data['info'].keys()]))
@@ -76,5 +88,10 @@ for size in sizes:
         filename = graph_folder + data['info'][algorithms_to_build[0]]['text size'] + '_' + alpha + '.' + extension
         title = alpha + ' ' + data['info'][algorithms_to_build[0]]['text size']
         print '\tBuilding', filename
-        build_graphs(data, alpha, algorithms_to_build, filename, title, extension)
+
+        background_key = args.background
+        if args.background is not None and args.background not in smoothed_data.keys():
+            background_key = None
+
+        build_graphs(smoothed_data, alpha, algorithms_to_build, filename, title, extension, background_key)
 

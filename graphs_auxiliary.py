@@ -314,7 +314,7 @@ def get_stats(data_vector):
     return dict(zip(statistics_names, statistics_vector))
 
 
-def build_graphs(data, alpha, keys, filename, title, extension):
+def build_graphs(data, alpha, keys, filename, title, extension, back_key):
     fig, ax = plt.subplots()
 
     accumulated_time = [dt.datetime.fromtimestamp(ts) for ts in data['time']]
@@ -325,15 +325,26 @@ def build_graphs(data, alpha, keys, filename, title, extension):
 
     names_mappings = compress_names(keys)
 
+    back_label = None
+    back_norm = None
+
+    if back_key == 'flow':
+        back_label = 'GbpS per second'
+        back_norm = 8e9
+    if back_key == 'entropy':
+        back_label = 'Bits'
+        back_norm = 1
+
     for key in sorted(keys):
         data_selected = 100 * np.asarray(data['performance'][key][alpha])
         ax.plot(accumulated_time, data_selected, label=names_mappings[key])
         print names_mappings[key], np.mean(data_selected)
 
-    ax2 = ax.twinx()
-    ax2.xaxis.set_major_formatter(xfmt)
-    ax2.plot(accumulated_time, np.asarray(data['flow']) / 1e9, label='Flow', lw=7, alpha=0.4)
-    ax2.set_ylabel('GbpS per second')
+    if back_label is not None:
+        ax2 = ax.twinx()
+        ax2.xaxis.set_major_formatter(xfmt)
+        ax2.plot(accumulated_time, np.asarray(data[back_key]) / back_norm, lw=7, alpha=0.4)
+        ax2.set_ylabel(back_label)
 
     fig.autofmt_xdate()
 
