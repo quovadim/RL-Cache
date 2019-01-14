@@ -5,8 +5,8 @@
 
 	"drop keys": true,
 
-	"algorithm type": [["ML-LRU", "6_2"]],
-	"compare algorithms": ["SH-GDSF", "AL-GDSF", "SH-LRU", "AL-LRU"],
+	"algorithm type": [["ML-GDSF", "6_1_256M"]],
+	"compare algorithms": ["SH-GDSF", "AL-GDSF"],
 
 	"check size": [1024],
 

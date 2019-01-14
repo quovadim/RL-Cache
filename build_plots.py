@@ -1,6 +1,7 @@
 import os
 import argparse
 import numpy as np
+from fractions import gcd
 
 os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -45,6 +46,9 @@ data = None
 
 common_length = None
 
+periods = {}
+factors = {}
+
 print 'Loading data...'
 
 configs_loaded = []
@@ -55,25 +59,39 @@ for experiment in experiments:
     configs_loaded.append(configuration)
 
     folder = configuration["output folder"] + '/'
+    periods[experiment] = configuration['period']
+    factors[experiment] = configuration['period']
 
     steps = get_number_of_steps(folder, args.filename, args.skip)
     if common_length is None or common_length > steps:
         common_length = steps
 
-print 'Maximum number of files to use is', common_length
+unique_periods = list(set(periods.values()))
 
-periods = {}
+if len(unique_periods) != 1:
+    lcm_value = reduce(lambda a, b: a * b / gcd(a, b), unique_periods)
+    period = lcm_value
+else:
+    period = unique_periods[0]
+
+for key in periods.keys():
+    factors[key] = period / periods[key]
+
+print 'Maximum number of files to use is', common_length
+print 'Common interval', period
 
 for i in range(len(configs_loaded)):
     configuration = configs_loaded[i]
     folder = configuration["output folder"] + '/'
 
     label = 'EXP' + experiments[i]
-    periods[label] = configuration['period']
 
     keys_to_ignore = configuration['classical']
 
     data_new = load_dataset(folder, args.filename, args.skip, keys_to_ignore, common_length, uid=label)
+    print factors[experiments[i]]
+    if factors[experiments[i]] != 1:
+        data_new = smooth(data_new, factors[experiments[i]], periods[experiments[i]])
 
     if data is None:
         data = data_new
@@ -85,16 +103,10 @@ for i in range(len(configs_loaded)):
         data['alphas'] = list(set(data['alphas']).intersection(set(data_new['alphas'])))
         for key in data_new['performance'].keys():
             data['performance'][key] = {}
-            for alpha in data['alphas']:
+            data['info'][key] = data_new['info'][key]
+            data['statistics'][key] = data_new['statistics'][key]
+            for alpha in data_new['performance'][key].keys():
                 data['performance'][key][alpha] = data_new['performance'][key][alpha]
-        for key in data['performance'].keys():
-            for alpha in data['performance'][key].keys():
-                if alpha not in data['alphas']:
-                    del data['performance'][key][alpha]
-
-unique_periods = list(set(periods.values()))
-assert len(unique_periods) == 1
-period = unique_periods[0]
 
 if 'entropy' in data.keys() and 'flow' in data.keys():
     print 'entropy', 'flow', np.corrcoef(data['flow'], data['entropy'])[0][1]
@@ -116,6 +128,13 @@ if not os.path.exists(graph_folder):
 
 if args.smooth != 1:
     smoothed_data = smooth(data, args.smooth, period)
+    if 'entropy' in smoothed_data.keys() and 'flow' in smoothed_data.keys():
+        print 'Smooth', 'entropy', 'flow', np.corrcoef(smoothed_data['flow'], smoothed_data['entropy'])[0][1]
+        keys_mapping = [(key, smoothed_data['info'][key]['size']) for key in smoothed_data['performance'].keys()]
+        for key, size in sorted(keys_mapping, key=lambda x: x[1]):
+            for alpha in smoothed_data['performance'][key].keys():
+                print 'Smooth', 'entropy', key, alpha, np.corrcoef(smoothed_data['performance'][key][alpha],
+                                                         smoothed_data['entropy'])[0][1]
 else:
     smoothed_data = data
 

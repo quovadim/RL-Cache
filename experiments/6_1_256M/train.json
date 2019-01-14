@@ -1,9 +1,9 @@
 {
 	"data": "china",
 
-	"cache size": 512,
+	"cache size": 256,
 
-	"target": "ML-LRU",
+	"target": "ML-GDSF",
 
 	"batch size": 4096,
 

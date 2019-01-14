@@ -330,7 +330,7 @@ def build_graphs(data, alpha, keys, filename, title, extension, back_key):
 
     if back_key == 'flow':
         back_label = 'GbpS per second'
-        back_norm = 8e9
+        back_norm = 1e9 / 8.0
     if back_key == 'entropy':
         back_label = 'Bits'
         back_norm = 1
