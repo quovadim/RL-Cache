@@ -28,4 +28,4 @@ if configuration is None:
 if not os.path.exists(configuration["output folder"]):
     os.makedirs(configuration["output folder"])
 
-test(configuration, configuration["output folder"] + '/0', get_test_dump_name(args.experiment), args.load)
+test(configuration, configuration["output folder"] + '/0', get_test_dump_name(args.experiment, args.test), args.load)

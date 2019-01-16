@@ -1,4 +1,5 @@
 source_experiment_folder = 'experiments/{:s}/{:s}'
+source_dump_files = 'experiments/{:s}/{:s}_{:s}'
 source_test_folder = 'tests/{:s}/{:s}'
 source_data_folder = 'data/{:s}'
 source_graph_folder = 'graphs/{:s}/{:s}'
@@ -29,8 +30,8 @@ def get_intervals_name(experiment):
     return source_experiment_folder.format(str(experiment), 'intervals')
 
 
-def get_test_dump_name(experiment):
-    return source_experiment_folder.format(str(experiment), 'test_dump')
+def get_test_dump_name(experiment, trace):
+    return source_dump_files.format(str(experiment), 'dump', trace)
 
 
 def get_admission_name(experiment):
