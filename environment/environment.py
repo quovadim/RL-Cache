@@ -79,6 +79,8 @@ def test(config, o_file_generator, dump_filename, load):
             algorithms_restored[alg] = restore_cache(dump_parameters['caches'][alg], algorithms[alg])
         algorithms = algorithms_restored
         skip_rows = counter + warmup_length
+        for featurer in featurers:
+            featurer.logical_time += skip_rows
 
     for row in iterate_dataset(filenames):
 
@@ -87,6 +89,8 @@ def test(config, o_file_generator, dump_filename, load):
             sys.stdout.write('\rSkipped ' + str(warmup_length + counter - skip_rows))
             if skip_rows == 0:
                 print ''
+                for featurer in featurers:
+                    featurer.real_time = row['timestamp']
             continue
 
         current_rows.append(row)
