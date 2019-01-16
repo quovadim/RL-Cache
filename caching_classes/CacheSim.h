@@ -38,6 +38,42 @@ public:
 	p::dict get_ratings();
 	void set_ratings(p::dict &_ratings);
 
+	p::dict get_latest_marks();
+	void set_latest_marks(p::dict &_latest_mark);
+
+	p::dict get_updates();
+	void set_updates(p::dict &_updates);
+
+	p::dict get_sizes();
+	void set_sizes(p::dict &_sizes);
+
+	uint64_t get_used_space();
+	void set_used_space(uint64_t _used_space);
+
+	uint64_t get_cache_size();
+	void set_cache_size(uint64_t _cache_size);
+
+	double get_L();
+	void set_L(double _L);
+
+	uint64_t get_misses();
+	void set_misses(uint64_t _misses);
+
+	uint64_t get_hits();
+	void set_hits(uint64_t _hits);
+
+	uint64_t get_byte_misses();
+	void set_byte_misses(uint64_t _byte_misses);
+
+	uint64_t get_byte_hits();
+	void set_byte_hits(uint64_t _byte_hits);
+
+	double get_total_rating();
+	void set_total_rating(double _total_rating);
+
+	bool get_ml_eviction();
+	void set_ml_eviction(double _is_ml_eviction);
+
 protected:
 
     virtual void produce_new_cache_state(p::dict &request, double eviction_rating, bool admission_decision) = 0;

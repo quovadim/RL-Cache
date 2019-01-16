@@ -6,7 +6,6 @@
 	"drop keys": true,
 
 	"algorithm type": [["ML-GDSF", "7_1"]],
-	"compare algorithms": ["SH-GDSF", "AL-GDSF"],
 
 	"check size": [1024],
 

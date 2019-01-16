@@ -29,6 +29,10 @@ def get_intervals_name(experiment):
     return source_experiment_folder.format(str(experiment), 'intervals')
 
 
+def get_test_dump_name(experiment):
+    return source_experiment_folder.format(str(experiment), 'test_dump')
+
+
 def get_admission_name(experiment):
     return source_experiment_folder.format(str(experiment), 'adm')
 

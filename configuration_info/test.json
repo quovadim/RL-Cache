@@ -27,13 +27,6 @@
 		"default": null
 	},
 
-	"compare algorithms":  {
-		"interval": null,
-		"recommendation": null,
-		"required": true,
-		"default": null
-	},
-
 	"check size":  {
 		"interval": null,
 		"recommendation": null,

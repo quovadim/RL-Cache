@@ -332,22 +332,11 @@ def check_test_config(experiment_name, test_name, tabulation='', verbose=True):
     if not check_existance('data folder', config['data folder'], True, tabulation, 0, verbose, True, directory=True):
         return None
 
-    config['classical'] = []
     config['testable'] = []
     if 'algorithms' not in config.keys():
         algorithms = {}
         multiplier = config['min size']
         step = config['step']
-        classical_keys = []
-        for alg in config['compare algorithms']:
-            for size in config['check size']:
-                class_info = name2class(alg)
-                class_info['size'] = size
-                possible_names = class2name(class_info)
-                for name in possible_names:
-                    algorithms[name] = None
-                    classical_keys.append(name)
-        config['classical'] = classical_keys
         for algorithm_type, experiment in config["algorithm type"]:
             for i in range(config['max size'] + 1):
                 size = int(multiplier * (step ** i))

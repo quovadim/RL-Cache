@@ -135,3 +135,88 @@ void CacheSim::set_ratings(p::dict &_ratings) {
         cache[it->first] = ratings.emplace(it->second, it->first);
     }
 }
+
+p::dict CacheSim::get_latest_marks() {
+    return to_py_dict<uint64_t, double>(latest_mark);
+}
+
+void CacheSim::set_latest_marks(p::dict &_latest_mark) {
+    latest_mark = to_std_map<uint64_t, double>(_latest_mark);
+}
+
+p::dict CacheSim::get_updates() {
+    return to_py_dict<uint64_t, uint64_t>(updates);
+}
+void CacheSim::set_updates(p::dict &_updates) {
+    updates = to_std_map<uint64_t, uint64_t>(_updates);
+}
+
+p::dict CacheSim::get_sizes() {
+    return to_py_dict<uint64_t, uint64_t>(sizes);
+}
+void CacheSim::set_sizes(p::dict &_sizes) {
+    sizes = to_std_map<uint64_t, uint64_t>(_sizes);
+}
+
+uint64_t CacheSim::get_used_space() {
+    return used_space;
+}
+void CacheSim::set_used_space(uint64_t _used_space) {
+    used_space = _used_space;
+}
+
+uint64_t CacheSim::get_cache_size() {
+    return cache_size;
+}
+void CacheSim::set_cache_size(uint64_t _cache_size) {
+    cache_size = _cache_size;
+}
+
+double CacheSim::get_L() {
+    return L;
+}
+void CacheSim::set_L(double _L) {
+    L = _L;
+}
+
+uint64_t CacheSim::get_misses() {
+    return misses;
+}
+void CacheSim::set_misses(uint64_t _misses) {
+    misses = _misses;
+}
+
+uint64_t CacheSim::get_hits() {
+    return hits;
+}
+void CacheSim::set_hits(uint64_t _hits) {
+    hits = _hits;
+}
+
+uint64_t CacheSim::get_byte_misses() {
+    return byte_misses;
+}
+void CacheSim::set_byte_misses(uint64_t _byte_misses) {
+    byte_misses = _byte_misses;
+}
+
+uint64_t CacheSim::get_byte_hits() {
+    return byte_hits;
+}
+void CacheSim::set_byte_hits(uint64_t _byte_hits) {
+    byte_hits = _byte_hits;
+}
+
+double CacheSim::get_total_rating() {
+    return total_rating;
+}
+void CacheSim::set_total_rating(double _total_rating) {
+    total_rating = _total_rating;
+}
+
+bool CacheSim::get_ml_eviction() {
+    return is_ml_eviction;
+}
+void CacheSim::set_ml_eviction(double _is_ml_eviction) {
+    is_ml_eviction = _is_ml_eviction;
+}

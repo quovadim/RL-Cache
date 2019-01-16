@@ -10,13 +10,16 @@ from hurry.filesize import size as hurry_fsize
 import sys
 from time import time as real_time
 
+import gc
+import pickle
+
 
 def fsize(size):
     result = hurry_fsize(size)
     return result[:len(result) - 1] + ' ' + result[len(result) - 1]
 
 
-def test(config, o_file_generator):
+def test(config, o_file_generator, dump_filename, load):
     current_rows = []
     file_counter = 0
 
@@ -52,12 +55,39 @@ def test(config, o_file_generator):
 
     real_start_time = int(real_time())
 
-    keys_to_print = config['classical']
+    keys_to_print = []
+
+    runs_without_gc = config['memopt']
+
     for name in config['testable']:
         if name2class(name)['size'] in config['check size']:
             keys_to_print.append(name)
 
+    skip_rows = 0
+
+    if load:
+        needs_warmup = False
+        dump_file = open(dump_filename, 'r')
+        dump_parameters = pickle.load(dump_file)
+        dump_file.close()
+        trace_beginning_time = dump_parameters['tbt']
+        trace_collected_size = dump_parameters['tcs']
+        counter = dump_parameters['counter']
+        file_counter = dump_parameters['file counter']
+        algorithms_restored = {}
+        for alg in algorithms.keys():
+            algorithms_restored[alg] = restore_cache(dump_parameters['caches'][alg], algorithms[alg])
+        algorithms = algorithms_restored
+        skip_rows = counter + warmup_length
+
     for row in iterate_dataset(filenames):
+
+        if skip_rows != 0:
+            skip_rows -= 1
+            sys.stdout.write('\rSkipped ' + str(warmup_length + counter - skip_rows))
+            if skip_rows == 0:
+                print ''
+            continue
 
         current_rows.append(row)
 
@@ -126,12 +156,43 @@ def test(config, o_file_generator):
 
             counter += len(current_rows)
 
+            if config['memopt'] >= 0 and runs_without_gc == 0:
+
+                sys.stdout.write('\r\033[1m\033[93mCollecting garbage...\033[0m')
+
+                del current_rows
+                del predictions_adm
+                del predictions_evc
+                del decisions_adm
+                del decisions_evc
+                del feature_sets
+
+                gc.collect()
+
+                runs_without_gc = config['memopt']
+
+                sys.stdout.write('\r\033[1m\033[92mCollecting garbage...Done\033[0m')
+                print ''
+            else:
+                runs_without_gc -= 1
+
             if not needs_warmup:
                 file_counter += 1
 
             current_rows = []
 
             needs_warmup = False
+
+            dump_parameters = {'caches': {},
+                               'counter': counter,
+                               'file counter': file_counter,
+                               'tbt': trace_beginning_time,
+                               'tcs': trace_collected_size}
+            for alg in algorithms.keys():
+                dump_parameters['caches'][alg] = dump_cache(algorithms[alg])
+            dump_file = open(dump_filename, 'w')
+            pickle.dump(dump_parameters, dump_file)
+            dump_file.close()
 
 
 def train(config, load_admission, load_eviction, n_threads=10, verbose=False, show=True):

@@ -358,7 +358,7 @@ class PacketFeaturer:
     def get_static_features(self, packet):
         feature_vector = [float(packet['number of observations']) / (float(packet['size'])),
                           self.logical_time,
-                          packet['number of observations'] != 1,
+                          packet['number of observations'] > 1.5,
                           float(packet['number of observations']) *
                           float(packet['size']) / float(1 + self.logical_time),
                           float(packet['number of observations']),

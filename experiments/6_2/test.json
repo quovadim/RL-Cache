@@ -6,7 +6,6 @@
 	"drop keys": true,
 
 	"algorithm type": [["ML-LRU", "6_2"]],
-	"compare algorithms": ["SH-GDSF", "AL-GDSF", "SH-LRU", "AL-LRU"],
 
 	"check size": [1024],
 
@@ -14,7 +13,7 @@
 	"max size": 6,
 	"step": 2,
 
-	"period": 600,
+	"period": 300,
 	"reset": true,
 	"alpha": [0],
 

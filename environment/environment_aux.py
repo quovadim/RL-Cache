@@ -15,6 +15,41 @@ from tqdm import tqdm
 from hurry.filesize import size as hurry_fsize
 
 
+def dump_cache(cache):
+    return {
+        'ratings': cache.get_ratings(),
+        'latest mark': cache.get_latest_marks(),
+        'updates': cache.get_updates(),
+        'sizes': cache.get_sizes(),
+        'used space': cache.get_used_space(),
+        'cache size': cache.get_cache_size(),
+        'L': cache.get_L(),
+        'misses': cache.get_misses(),
+        'hits': cache.get_hits(),
+        'byte misses': cache.get_byte_misses(),
+        'byte hits': cache.get_byte_hits(),
+        'total rating': cache.get_total_rating(),
+        'ml eviction': cache.get_ml_eviction()
+    }
+
+
+def restore_cache(data, cache):
+    cache.set_ratings(data['ratings'])
+    cache.set_latest_marks(data['latest mark'])
+    cache.set_updates(data['updates'])
+    cache.set_sizes(data['sizes'])
+    cache.set_used_space(data['used space'])
+    cache.set_cache_size(data['cache size'])
+    cache.set_L(data['L'])
+    cache.set_misses(data['misses'])
+    cache.set_hits(data['hits'])
+    cache.set_byte_misses(data['byte misses'])
+    cache.set_byte_hits(data['byte hits'])
+    cache.set_total_rating(data['total rating'])
+    cache.set_ml_eviction(data['ml eviction'])
+    return cache
+
+
 def write_performance_to_log(log, data, iteration, prefix):
     pstr = ['{:15d}'] + ['{:^15s} {:10.5f}' for _ in data.keys()]
     pstr = ' '.join(pstr)
@@ -640,7 +675,7 @@ def test_algorithms(algorithms,
                 data_value = [metric(algorithms[key], alpha_value) for alpha_value in sorted(alpha)]
                 history[key].append(data_value)
 
-        if verbose and i % 100 == 0 or i == len(rows) - 1:
+        if verbose and ((i % 1513 == (1513 - 1)) or i == len(rows) - 1):
             print_list_total = []
             values_print_alphas = [base_iteration + i + 1]
 
@@ -697,7 +732,7 @@ def test_algorithms_light(algorithms,
         for alg in keys:
             algorithms[alg].decide(rows[i], predictions_evc[alg][i], predictions_adm[alg][i])
 
-        if verbose and (i % 100 == 99 or i == len(rows) - 1):
+        if verbose and ((i % 1513 == (1513 - 1)) or i == len(rows) - 1):
             values = [min(99.99, 100 * metric(algorithms[alg], alpha)) for alg in keys]
             best_performance = keys[values.index(max(values))]
             if previous_data is not None and i == len(rows) - 1:

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from os import listdir
 from os.path import isfile, join
 import pickle
-import pandas as pd
+from time import sleep
 
 import matplotlib.dates as md
 import datetime as dt
@@ -269,27 +269,17 @@ def load_data(filepath, filename, skip, max_length=None, uid=''):
     return data
 
 
-def load_dataset(folder, filename, skip, keys_to_ignore, max_length=None, uid=''):
+def load_dataset(folder, filename, skip, max_length=None, uid=''):
     data = load_data(folder, filename, skip, max_length, uid)
 
-    if uid != '':
-        uid = '-' + uid
-
-    keys_to_ignore = [key + uid for key in keys_to_ignore]
-
-    keys = [key for key in data['performance'].keys() if key not in keys_to_ignore]
-    for key in keys_to_ignore:
-        del data['performance'][key]
-
     names_info = {}
-    for key in keys:
+    for key in data['performance'].keys():
         names_info[key] = name2class(key)
 
     data['info'] = names_info
 
-    print '...Done'
     statistics = {}
-    for key in keys:
+    for key in data['performance'].keys():
         statistics[key] = {}
         for alpha in data['performance'][key].keys():
             statistics[key][alpha] = get_stats(data['performance'][key][alpha])
@@ -338,7 +328,6 @@ def build_graphs(data, alpha, keys, filename, title, extension, back_key):
     for key in sorted(keys):
         data_selected = 100 * np.asarray(data['performance'][key][alpha])
         ax.plot(accumulated_time, data_selected, label=names_mappings[key])
-        print names_mappings[key], np.mean(data_selected)
 
     if back_label is not None:
         ax2 = ax.twinx()
@@ -351,10 +340,13 @@ def build_graphs(data, alpha, keys, filename, title, extension, back_key):
     ax.set_xlabel('Time HH-MM-SS')
     ax.set_ylabel(alpha + ' %')
 
-    ax.legend()
+    ax.legend(prop={'size': 3})
     fig.savefig(filename, format=extension)
-
     plt.close(fig)
+
+    # Required for OS to update disk info
+    #sleep(1)
+
 
 
 def build_barchart(data, keys, alpha, target_name, filename, extension):
@@ -409,6 +401,9 @@ def build_barchart(data, keys, alpha, target_name, filename, extension):
     ax.legend(loc=4)
     fig.savefig(filename, format=extension)
     plt.close(fig)
+
+    # Required for OS to update disk info
+    #sleep(1)
 
 
 def build_percentiles(data, keys, alphas, output_folder, extension):

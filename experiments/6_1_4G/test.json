@@ -6,15 +6,14 @@
 	"drop keys": true,
 
 	"algorithm type": [["ML-GDSF", "6_1_4G"]],
-	"compare algorithms": ["SH-GDSF", "AL-GDSF"],
 
 	"check size": [1024],
 
-	"min size": 256,
-	"max size": 6,
+	"min size": 1024,
+	"max size": 3,
 	"step": 2,
 
-	"period": 600,
+	"period": 300,
 	"reset": true,
 	"alpha": [0],
 
