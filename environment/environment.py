@@ -66,6 +66,7 @@ def test(config, o_file_generator, dump_filename, load):
     skip_rows = 0
 
     if load:
+        print 'Loading ', dump_filename
         needs_warmup = False
         dump_file = open(dump_filename, 'r')
         dump_parameters = pickle.load(dump_file)
@@ -175,6 +176,17 @@ def test(config, o_file_generator, dump_filename, load):
 
                 runs_without_gc = config['memopt']
 
+                dump_parameters = {'caches': {},
+                                   'counter': counter,
+                                   'file counter': file_counter,
+                                   'tbt': trace_beginning_time,
+                                   'tcs': trace_collected_size}
+                for alg in algorithms.keys():
+                    dump_parameters['caches'][alg] = dump_cache(algorithms[alg])
+                dump_file = open(dump_filename, 'w')
+                pickle.dump(dump_parameters, dump_file)
+                dump_file.close()
+
                 sys.stdout.write('\r\033[1m\033[92mCollecting garbage...Done\033[0m')
                 print ''
             else:
@@ -186,17 +198,6 @@ def test(config, o_file_generator, dump_filename, load):
             current_rows = []
 
             needs_warmup = False
-
-            dump_parameters = {'caches': {},
-                               'counter': counter,
-                               'file counter': file_counter,
-                               'tbt': trace_beginning_time,
-                               'tcs': trace_collected_size}
-            for alg in algorithms.keys():
-                dump_parameters['caches'][alg] = dump_cache(algorithms[alg])
-            dump_file = open(dump_filename, 'w')
-            pickle.dump(dump_parameters, dump_file)
-            dump_file.close()
 
 
 def train(config, load_admission, load_eviction, n_threads=10, verbose=False, show=True):

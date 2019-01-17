@@ -33,21 +33,21 @@ void GDSimulator::produce_new_cache_state(p::dict &request, double eviction_rati
 
 		cache.erase(min_elem->second);
 		sizes.erase(min_elem->second);
-		updates.erase(min_elem->second);
-		latest_mark.erase(min_elem->second);
+		//updates.erase(min_elem->second);
+		//latest_mark.erase(min_elem->second);
 		ratings.erase(min_elem);
 	}
 
 	double prediction = eviction_rating;
 	uint64_t id = p::extract<uint64_t>(request.get("id"));
 
-    latest_mark[id] = prediction;
+    //latest_mark[id] = prediction;
 
     double rating = L + prediction;
     total_rating += rating;
     cache[id] = ratings.emplace(rating, id);
 	sizes.insert(pair<uint64_t, uint64_t>(id, size));
-	updates.insert(pair<uint64_t, uint64_t>(id, 0));
+	//updates.insert(pair<uint64_t, uint64_t>(id, 0));
 	used_space += size;
 
 	return;
