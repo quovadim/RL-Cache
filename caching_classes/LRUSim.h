@@ -26,7 +26,7 @@ public:
 	LRUSimulator(uint64_t _cache_size);
 
 protected:
-    virtual void produce_new_cache_state(p::dict &request, double eviction_rating, bool admission_rating);
+    virtual void produce_new_cache_state(p::dict &request, double eviction_rating, int admission_rating);
 };
 
 BOOST_PYTHON_MODULE(LRUSim) {
@@ -42,10 +42,6 @@ BOOST_PYTHON_MODULE(LRUSim) {
 	.def("decide", &LRUSimulator::decide)
     .def("get_ratings", &LRUSimulator::get_ratings)
 	.def("set_ratings", &LRUSimulator::set_ratings)
-	.def("get_latest_marks", &LRUSimulator::get_latest_marks)
-	.def("set_latest_marks", &LRUSimulator::set_latest_marks)
-	.def("get_updates", &LRUSimulator::get_updates)
-	.def("set_updates", &LRUSimulator::set_updates)
 	.def("get_sizes", &LRUSimulator::get_sizes)
 	.def("set_sizes", &LRUSimulator::set_sizes)
 	.def("get_used_space", &LRUSimulator::get_used_space)

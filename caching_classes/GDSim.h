@@ -28,7 +28,7 @@ public:
 
 protected:
 
-    virtual void produce_new_cache_state(p::dict &request, double eviction_rating, bool admission_decision);
+    virtual void produce_new_cache_state(p::dict &request, double eviction_rating, int admission_decision);
 
 };
 
@@ -45,10 +45,6 @@ BOOST_PYTHON_MODULE(GDSim) {
 	.def("decide", &GDSimulator::decide)
 	.def("get_ratings", &GDSimulator::get_ratings)
 	.def("set_ratings", &GDSimulator::set_ratings)
-	.def("get_latest_marks", &GDSimulator::get_latest_marks)
-	.def("set_latest_marks", &GDSimulator::set_latest_marks)
-	.def("get_updates", &GDSimulator::get_updates)
-	.def("set_updates", &GDSimulator::set_updates)
 	.def("get_sizes", &GDSimulator::get_sizes)
 	.def("set_sizes", &GDSimulator::set_sizes)
 	.def("get_used_space", &GDSimulator::get_used_space)

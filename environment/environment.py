@@ -92,6 +92,7 @@ def test(config, o_file_generator, dump_filename, load):
                 print ''
                 for featurer in featurers:
                     featurer.real_time = row['timestamp']
+                    featurer.preserve()
             continue
 
         current_rows.append(row)

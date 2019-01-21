@@ -2,6 +2,7 @@ import numpy as np
 from MLSim import MLSimulator
 from GDSim import GDSimulator
 from LRUSim import LRUSimulator
+from AdaptSizeSim import AdaptSizeSimulator
 
 import pickle
 from multiprocessing import Process, Queue
@@ -18,8 +19,6 @@ from hurry.filesize import size as hurry_fsize
 def dump_cache(cache):
     return {
         'ratings': cache.get_ratings(),
-        'latest mark': cache.get_latest_marks(),
-        'updates': cache.get_updates(),
         'sizes': cache.get_sizes(),
         'used space': cache.get_used_space(),
         'cache size': cache.get_cache_size(),
@@ -35,8 +34,6 @@ def dump_cache(cache):
 
 def restore_cache(data, cache):
     cache.set_ratings(data['ratings'])
-    cache.set_latest_marks(data['latest mark'])
-    cache.set_updates(data['updates'])
     cache.set_sizes(data['sizes'])
     cache.set_used_space(data['used space'])
     cache.set_cache_size(data['cache size'])
@@ -178,6 +175,10 @@ def name2class(name):
     admission_index = -1
     eviction_index = -1
 
+    if name_admission == 'AS':
+        admission_random = False
+        admission_index = 5
+        class_type = AdaptSizeSimulator
     if name_admission == 'AL':
         admission_random = False
         admission_index = 5
@@ -192,7 +193,8 @@ def name2class(name):
         eviction_random = False
         eviction_index = 0
     if name_eviction == 'LRU':
-        class_type = LRUSimulator
+        if class_type is None:
+            class_type = LRUSimulator
         eviction_random = False
         eviction_index = 1
     if name_eviction == 'LFU':
@@ -306,7 +308,8 @@ def extreme_compress(name):
                          'GDSF': 'G',
                          'ML': 'M',
                          'RNG': 'R',
-                         'DET': 'D'}
+                         'DET': 'D',
+                         'AS': 'T'}
     name_converted = [replacement_table[info['admission']], replacement_table[info['eviction']]]
     if info['operational mode'] != '':
         name_converted.append(replacement_table[info['operational mode']])
@@ -369,7 +372,7 @@ def generate_predictions(features, index, rng_mode, binarize):
     else:
         predictions = features[:, index]
     if binarize:
-        predictions = [bool(item == 1) for item in predictions]
+        predictions = [int(item) for item in predictions]
     return predictions
 
 
@@ -516,13 +519,13 @@ def generate_data_for_models_light(keys,
         if class_info['admission mode']:
             if predictions_adm is None:
                 predictions_adm = adm_model.predict(ml_feature_set, verbose=0, batch_size=batch_size)
-                amax_adm = [bool(np.argmax(item) == 1) for item in predictions_adm]
+                amax_adm = [int(np.argmax(item)) for item in predictions_adm]
             if class_info['random']:
-                decisions_adm[key] = [bool(item == 1) for item in sampling(predictions_adm)]
+                decisions_adm[key] = [int(item) for item in sampling(predictions_adm)]
             else:
                 decisions_adm[key] = amax_adm
         else:
-            decisions_adm[key] = [bool(item) for item in classical_feature_set[:, class_info['admission index']]]
+            decisions_adm[key] = [int(item) for item in classical_feature_set[:, class_info['admission index']]]
 
         if class_info['eviction mode']:
             if predictions_evc is None:
@@ -784,7 +787,7 @@ def get_session_features(bool_eviction, bool_admission, predictions_evc, predict
         else:
             admission_decisions = sampling(predictions_adm)
         adm_decision_values = admission_decisions
-        admission_decisions = [bool(admission_decisions[i] == 1) for i in range(len(eviction_decisions))]
+        admission_decisions = [int(admission_decisions[i]) for i in range(len(eviction_decisions))]
     else:
         adm_decision_values = None
         admission_decisions = predictions_adm

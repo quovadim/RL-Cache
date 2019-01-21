@@ -4,21 +4,21 @@ import sys
 import numpy as np
 from tqdm import tqdm
 import pickle
+from mmap import mmap
 
 
 def iterate_dataset(filenames):
     for fname in filenames:
         names = PacketFeaturer.core_feature_names
         types = PacketFeaturer.feature_types
-        hdlr = open(fname, 'r')
+        with open(fname, 'r+b') as hdlr:
+            maped_file = mmap(hdlr.fileno(), 0)
 
-        for line in hdlr:
-            line_converted = line.split(' ')
-            line_converted = [types[i](line_converted[i]) for i in range(len(line_converted))]
-            line_converted += [0] * len(names[len(line_converted):])
-            yield dict(zip(names, line_converted))
-
-        hdlr.close()
+            for line in iter(maped_file.readline, ""):
+                line_converted = line.split(' ')
+                line_converted = [types[i](line_converted[i]) for i in range(len(line_converted))]
+                line_converted += [0] * len(names[len(line_converted):])
+                yield dict(zip(names, line_converted))
 
 
 def get_trace_length(filenames):
@@ -358,11 +358,11 @@ class PacketFeaturer:
     def get_static_features(self, packet):
         feature_vector = [float(packet['number of observations']) / (float(packet['size'])),
                           self.logical_time,
-                          packet['number of observations'] > 1.5,
+                          1 if packet['number of observations'] > 1.5 else 0,
                           float(packet['number of observations']) *
                           float(packet['size']) / float(1 + self.logical_time),
                           float(packet['number of observations']),
-                          True]
+                          1]
 
         return np.asarray(feature_vector)
 

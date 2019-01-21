@@ -3,8 +3,8 @@ caching:
 	$(MAKE) -C caching_classes copy
 
 caching_clean:
-	rm *.so
-	rm *.o
+	rm environment/*.so
+	rm environment/*.o
 	$(MAKE) -C caching_classes clean
 
 

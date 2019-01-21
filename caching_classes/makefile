@@ -29,6 +29,11 @@ lru: LRUSim.o
 LRUSim.o: LRUSim.cpp
 	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c LRUSim.cpp
 
+adapt: AdaptSizeSim.o
+	g++ -shared $(CFLAGS),--export-dynamic CacheSim.o AdaptSizeSim.o -L$(BOOST_LIB) -lboost_python -L/usr/lib/python$(PYTHON_VERSION)/config -lpython$(PYTHON_VERSION) -o AdaptSizeSim.so
+AdaptSizeSim.o: AdaptSizeSim.cpp
+	g++ -I$(PYTHON_INCLUDE) -I$(BOOST_INC) $(CFLAGS) -c AdaptSizeSim.cpp
+
 clean:
 	rm *.so
 	rm *.o
@@ -41,5 +46,6 @@ all:
 	make ml
 	make gd
 	make lru
+	make adapt
 	make copy
 

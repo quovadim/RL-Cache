@@ -28,7 +28,7 @@ public:
 
 	virtual uint64_t free_space();
 
-	virtual bool decide(p::dict request, double eviction_rating, bool admission_decision);
+	virtual bool decide(p::dict request, double eviction_rating, int admission_decision);
 
 	bool prediction_updated_eviction;
 	bool prediction_updated_admission;
@@ -37,12 +37,6 @@ public:
 
 	p::dict get_ratings();
 	void set_ratings(p::dict &_ratings);
-
-	p::dict get_latest_marks();
-	void set_latest_marks(p::dict &_latest_mark);
-
-	p::dict get_updates();
-	void set_updates(p::dict &_updates);
 
 	p::dict get_sizes();
 	void set_sizes(p::dict &_sizes);
@@ -76,13 +70,11 @@ public:
 
 protected:
 
-    virtual void produce_new_cache_state(p::dict &request, double eviction_rating, bool admission_decision) = 0;
+    virtual void produce_new_cache_state(p::dict &request, double eviction_rating, int admission_decision) = 0;
 
     map<uint64_t, mm_iterator> cache;
 	multimap<double, uint64_t> ratings;
 	map<uint64_t, uint64_t> sizes;
-	map<uint64_t, double> latest_mark;
-	map<uint64_t, uint64_t> updates;
 
 	uint64_t used_space;
 

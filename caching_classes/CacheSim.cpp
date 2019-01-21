@@ -66,7 +66,7 @@ uint64_t CacheSim::free_space() {
     return cache_size - used_space;
 }
 
-bool CacheSim::decide(p::dict request, double eviction_rating, bool admission_decision) {
+bool CacheSim::decide(p::dict request, double eviction_rating, int admission_decision) {
     prediction_updated_eviction = false;
     prediction_updated_admission = false;
 
@@ -85,25 +85,7 @@ bool CacheSim::decide(p::dict request, double eviction_rating, bool admission_de
 		hits += 1;
 		byte_hits += double(size) / 1000;
 
-		if (is_ml_eviction) {
-		    if (updates[id] < refresh_period) {
-                updates[id]++;
-                ratings.erase(lit->second);
-		        cache[id] = ratings.emplace(L + latest_mark[id], id);
-                prediction_updated_eviction = false;
-                return true;
-            } else {
-                updates[id] = 0;
-            }
-        }
-
-        //if (!deterministic_eviction && is_ml_eviction && (distr(generator) < 0.2)) {
-        // (old_rating > (L + estimation)) FOR MAX SELECTION prediction_updated_eviction = false
-        // (distr(generator) < std::pow(2, -1 * std::fabs(std::log2(latest_mark[id]) - std::log2(estimation)))) FOR RANDOM
-        //if (is_ml_eviction && ((L - (old_rating - latest_mark[id])) < 128)) {
-
         double rating = L + eviction_rating;
-        latest_mark[id] = eviction_rating;
         ratings.erase(lit->second);
 		cache[id] = ratings.emplace(rating, id);
 		prediction_updated_eviction = true;
@@ -134,21 +116,6 @@ void CacheSim::set_ratings(p::dict &_ratings) {
     for(auto it = final_map.begin(); it != final_map.end(); it++) {
         cache[it->first] = ratings.emplace(it->second, it->first);
     }
-}
-
-p::dict CacheSim::get_latest_marks() {
-    return to_py_dict<uint64_t, double>(latest_mark);
-}
-
-void CacheSim::set_latest_marks(p::dict &_latest_mark) {
-    latest_mark = to_std_map<uint64_t, double>(_latest_mark);
-}
-
-p::dict CacheSim::get_updates() {
-    return to_py_dict<uint64_t, uint64_t>(updates);
-}
-void CacheSim::set_updates(p::dict &_updates) {
-    updates = to_std_map<uint64_t, uint64_t>(_updates);
 }
 
 p::dict CacheSim::get_sizes() {

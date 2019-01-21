@@ -1,0 +1,17 @@
+{
+  "statistics": "statistics/china_statistics_15M",
+  "warmup": 1000000,
+  "split step": 10,
+
+  "normalization limit": 3,
+  "bias": 1,
+
+  "save": true,
+  "load": true,
+
+  "show stat": false,
+
+  "lambda": 0.99995394935,
+
+  "usable names": ["log size", "log frequency", "log time recency"]
+}

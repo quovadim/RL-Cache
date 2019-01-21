@@ -26,7 +26,7 @@ public:
 	MLSimulator(uint64_t _cache_size);
 
 protected:
-    virtual void produce_new_cache_state(p::dict &request, double eviction_rating, bool admission_decision);
+    virtual void produce_new_cache_state(p::dict &request, double eviction_rating, int admission_decision);
 };
 
 BOOST_PYTHON_MODULE(MLSim) {
@@ -42,10 +42,6 @@ BOOST_PYTHON_MODULE(MLSim) {
 	.def("decide", &MLSimulator::decide)
 	.def("get_ratings", &MLSimulator::get_ratings)
 	.def("set_ratings", &MLSimulator::set_ratings)
-	.def("get_latest_marks", &MLSimulator::get_latest_marks)
-	.def("set_latest_marks", &MLSimulator::set_latest_marks)
-	.def("get_updates", &MLSimulator::get_updates)
-	.def("set_updates", &MLSimulator::set_updates)
 	.def("get_sizes", &MLSimulator::get_sizes)
 	.def("set_sizes", &MLSimulator::set_sizes)
 	.def("get_used_space", &MLSimulator::get_used_space)
