@@ -50,6 +50,9 @@ bool AdaptSizeSimulator::decide(p::dict request, double eviction_rating, int adm
 }
 
 void AdaptSizeSimulator::reconfigure() {
+
+    // The code is adapted from https://github.com/dasebe/webcachesim/pull/9/files
+
     next_configuration--;
     if (next_configuration) {
         return;
@@ -221,6 +224,7 @@ double AdaptSizeSimulator::model_hit_rate(double log2c) {
 }
 
 bool AdaptSizeSimulator::admit(p::dict &request) {
+    // The code is adapted from https://github.com/dasebe/webcachesim/pull/9/files
     double roll = distr(generator);
     uint64_t size = p::extract<uint64_t>(request.get("size"));
 	double admitProb = exp(-1.0 * double(size) / c);

@@ -55,6 +55,13 @@
     "default": false
   },
 
+  "use discretization": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": false
+  },
+
   "eviction lr": {
     "interval": [0, 1],
     "recommendation": [1e-6, 1e-3],

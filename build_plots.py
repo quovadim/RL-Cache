@@ -27,6 +27,8 @@ parser.add_argument('-c', '--correlation', action='store_true', help="Print corr
 
 parser.add_argument('-b', '--background', type=str, default=None, help='Background plot')
 
+parser.add_argument('-k', '--keys', type=str, default=None, help="Keys that should be into final graphs")
+
 args = parser.parse_args()
 
 from graphs_auxiliary import smooth, build_graphs, build_percentiles, load_dataset, get_number_of_steps
@@ -37,6 +39,10 @@ from environment.environment_aux import to_ts
 extension = args.extension
 
 experiments = sorted(args.experiments.split(' '))
+if args.keys is not None:
+    keys = sorted(args.keys.split(' '))
+else:
+    keys = []
 
 target_data = get_graphs_name('--'.join(experiments), args.dataset) + '/'
 
@@ -119,6 +125,21 @@ for i in range(len(configs_loaded)):
             data['statistics'][key] = data_new['statistics'][key]
             for alpha in data_new['performance'][key].keys():
                 data['performance'][key][alpha] = data_new['performance'][key][alpha]
+
+keys_to_drop = []
+for key in data['performance'].keys():
+    good_key = keys == []
+    for lkey in keys:
+        if '-' + lkey in key or lkey + '-' in key:
+            good_key = True
+            break
+    if not good_key:
+        keys_to_drop.append(key)
+
+for key in keys_to_drop:
+    del data['performance'][key]
+    del data['info'][key]
+    del data['statistics'][key]
 
 if args.correlation and 'entropy' in data.keys() and 'flow' in data.keys():
     print 'entropy', 'flow', np.corrcoef(data['flow'], data['entropy'])[0][1]

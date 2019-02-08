@@ -223,6 +223,8 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
 
     featurer = PacketFeaturer(config_statistics, verbose=False)
 
+    config_model['init vals'] = featurer.init_vals
+
     model_admission, model_eviction, common_model, last_dim = create_models(config_model, featurer.dim)
 
     if load_eviction:
@@ -527,7 +529,7 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
 
                 data = test_algorithms_light(algorithms_copy, decisions_adm, decisions_evc, current_rows[:step_to_make],
                                              alpha, None, special_keys, base_iteration=base_iteration, print_at=step,
-                                             verbose=verbose)
+                                             verbose=True)
                 if logging:
                     write_performance_to_log(config['train history'], data,
                                              base_iteration + warmup_period, 'B')

@@ -66,6 +66,20 @@
     "interval": null,
     "recommendation": null,
     "required": false,
-    "default": []
+    "default": ["log time recency",
+      "log bhr",
+      "log gdsf",
+      "log exp time recency",
+      "log exp request recency",
+      "log request recency",
+      "log size",
+      "log frequency"]
+  },
+
+  "pure mode": {
+    "interval": null,
+    "recommendation": null,
+    "required": false,
+    "default": false
   }
 }

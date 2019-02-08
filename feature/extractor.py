@@ -169,6 +169,8 @@ class PacketFeaturer:
 
         self.feature_num = len(self.names)
 
+        self.pure_mode = False
+
         if verbose:
             print 'Packet featurer creation started'
 
@@ -178,6 +180,7 @@ class PacketFeaturer:
             self.statistics = {}
             self.bias = 0
             self.normalization_limit = 0
+            self.pure_mode = config['pure mode']
             if self.verbose:
                 print 'Features', ' '.join(
                     ['{:d}: \033[1m"{:s}"\033[0m'.format(1 + i, self.names[i]) for i in range(len(self.names))])
@@ -252,14 +255,14 @@ class PacketFeaturer:
             self.warmup = config['warmup']
             self.split_step = config['split step']
             assert self.names == data[4]
-            assert len(self.feature_mappings) == len(self.names)
+            assert len(self.feature_mappings) >= len(self.names)
             assert self.split_step == data[2]
             assert self.warmup == data[3]
 
     def apply_config(self, config):
         self.forget_lambda = config['lambda']
         self.warmup = config['warmup']
-        self.logical_time = config['warmup']
+        self.logical_time = 0
         self.split_step = config['split step']
         loading_failed = False
         self.normalization_limit = config['normalization limit']
@@ -278,12 +281,28 @@ class PacketFeaturer:
                     print '\033[1m\033[91mFAIL\033[0m'
                 loading_failed = True
 
-        if not config['load'] or loading_failed:
-            self.collect_statistics(config)
-            if config['save'] or loading_failed:
-                self.save_statistics(config)
+            if not config['load'] or loading_failed:
+                self.collect_statistics(config)
+                if config['save'] or loading_failed:
+                    self.save_statistics(config)
+            for name in self.names:
+                self.dim += len(self.statistics[name])
+        else:
+            self.dim = len(self.names)
+
+        if self.pure_mode:
+            self.dim = len(self.names)
+
+        minmax = {}
         for name in self.names:
-            self.dim += len(self.statistics[name])
+            minmax[name] = []
+            for a, b in self.feature_mappings[name]:
+                minmax[name].append(a)
+                minmax[name].append(b)
+
+        mv_vals = [(1 + min(minmax[name]), max(minmax[name]) - 1) for name in self.names]
+        self.init_vals = mv_vals
+
         self.memory_vector = np.zeros(self.dim)
 
     def full_reset(self):
@@ -368,6 +387,8 @@ class PacketFeaturer:
 
     def get_ml_features(self, packet):
         feature_vector = self.get_pure_features(packet)
+        if self.pure_mode:
+            return feature_vector
         return self.__get_packet_features_from_pure(feature_vector)
 
     def get_features(self, packet):
