@@ -1,11 +1,11 @@
 {
 	"data": "china",
 
-	"cache size": 1024,
+	"cache size": 512,
 
 	"target": "ML-GDSF",
 
-	"batch size": 4096,
+	"batch size": 2048,
 
 	"seed": 63,
 
@@ -16,7 +16,7 @@
 		"change mode": "random",
 		"seed": 45,
 		"initial gamma": 1.0,
-		"gamma": 0.001,
+		"gamma": 0.01,
 		"alpha": 0,
 		"use hr": true,
 		"metric type": "correlated"
@@ -29,20 +29,20 @@
 	"percentile eviction": 90,
 
 	"epochs": 1,
-	"warmup": 1000000,
+	"warmup": 200000,
 	"runs": 500,
 	"duplications": 20,
 	"refresh period": 1,
-	"repetitions": 3,
+	"repetitions": 2,
 	"drop": false,
-	"store period": 3,
-	"overlap": 150000,
-	"period": 200000,
+	"store period": 2,
+	"overlap": 750,
+	"period": 100000,
 
 	"refresh policy": "monotonic",
 	"refresh value": 0,
 
-	"algorithms": ["AL-GDSF", "SH-LRU", "AL-Oracle"],
+	"algorithms": ["AL-GDSF", "SH-LRU"],
 
 	"iterative": false,
 	"start iteration": "E",

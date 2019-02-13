@@ -465,11 +465,10 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
             )
 
             if skip_required or warming_to_required_state:
-                verbose_print = True
 
                 data = test_algorithms_light(algorithms, decisions_adm, decisions_evc,
                                              current_rows, alpha, None, special_keys,
-                                             base_iteration=base_iteration, verbose=verbose_print)
+                                             base_iteration=base_iteration, verbose=True)
 
                 if warming_to_required_state:
                     step_length = config['refresh period']

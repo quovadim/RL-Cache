@@ -124,7 +124,7 @@ def print_statistics(statistics):
 class PacketFeaturer:
 
     core_feature_names = ['timestamp', 'id', 'size', 'number of observations', 'last appearance',
-                          'logical time', 'exponential recency', 'exponential logical time', 'entropy']#, 'future']
+                          'logical time', 'exponential recency', 'exponential logical time', 'entropy', 'future']
 
     feature_extractors = {
         'log size': lambda x, l, r: np.log(1 + float(x['size'])),
@@ -150,7 +150,7 @@ class PacketFeaturer:
 
     log_features = [key for key in feature_extractors.keys() if 'log ' in key]
 
-    feature_types = [int, int, int, int, int, int, float, float, float, float]
+    feature_types = [int, int, int, int, int, int, float, float, float, float, float]
 
     def __init__(self, config, verbose=False):
         self.logical_time = 0
@@ -378,8 +378,7 @@ class PacketFeaturer:
         feature_vector = [float(packet['number of observations']) / (float(packet['size'])),
                           self.logical_time,
                           1 if packet['number of observations'] > 1.5 else 0,
-                          float(packet['number of observations']) *
-                          float(packet['size']) / float(1 + self.logical_time),
+                          (float(packet['future']) - 1) / (float(packet['size'])),
                           float(packet['number of observations']),
                           1]
 

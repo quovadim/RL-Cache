@@ -25,6 +25,8 @@ if args.cpu:
     os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+#train_agent(configuration, args.preload_admission)
+
 train(configuration, args.preload_admission, args.preload_eviction,
       n_threads=args.threads, verbose=args.verbose, show=not args.show)
 

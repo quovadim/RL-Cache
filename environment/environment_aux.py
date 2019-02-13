@@ -202,7 +202,7 @@ def name2class(name):
         eviction_random = False
         eviction_index = 4
     if name_eviction == 'Oracle':
-        class_type = LRUSimulator
+        class_type = GDSimulator
         eviction_random = False
         eviction_index = 3
     if name_eviction == 'ML':
@@ -309,7 +309,8 @@ def extreme_compress(name):
                          'ML': 'M',
                          'RNG': 'R',
                          'DET': 'D',
-                         'AS': 'T'}
+                         'AS': 'T',
+                         'Oracle': 'O'}
     name_converted = [replacement_table[info['admission']], replacement_table[info['eviction']]]
     if info['operational mode'] != '':
         name_converted.append(replacement_table[info['operational mode']])
@@ -587,7 +588,7 @@ def train_model(percentile, model, rewards, states, actions,
                 batch_size, max_samples, label, mc=False, verbose=False):
     if mc:
         X, Y = monte_carlo_sampling(states, actions, rewards, features_embedding, predictions.shape[1])
-        model.fit(X, Y, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
+        model.fit(X, Y, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=1)
         return
     elite_states = []
     elite_actions = []
@@ -618,7 +619,7 @@ def train_model(percentile, model, rewards, states, actions,
         print label, rstr_random
 
     v = model.fit(features_embedding[elite_states], answers_embedding[elite_actions],
-                  epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)
+                  epochs=epochs, batch_size=batch_size, shuffle=True, verbose=1)
 
     if verbose:
         rewards_flat = np.concatenate(rewards, axis=0).flatten()
@@ -944,7 +945,6 @@ def generate_session_continious(
     assert algorithm_template.get_ratings() == ratings
 
     return lstates, np.asarray(lactions), lstates_adm, np.asarray(lactions_adm), eviction_rating, admission_rating
-
 
 
 def collect_filenames(filepath):

@@ -1,7 +1,7 @@
 source_experiment_folder = 'experiments/{:s}/{:s}'
 source_dump_files = 'experiments/{:s}/{:s}_{:s}'
 source_test_folder = 'tests/{:s}/{:s}'
-source_data_folder = 'data/{:s}'
+source_data_folder = 'data/{:s}_rewarded'
 source_graph_folder = 'graphs/{:s}/{:s}'
 source_configuration_rules = 'configuration_info/{:s}'
 

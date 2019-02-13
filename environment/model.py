@@ -130,7 +130,7 @@ class EntropyRegularization(Layer):
         return input_shape
 
 
-def create_common_model(config, input_dim):
+def create_common_model(config, input_dim, multiplier=2):
     if not config['use common']:
         return None
     multiplier_common = config['multiplier common']
@@ -139,7 +139,8 @@ def create_common_model(config, input_dim):
     dropout_rate = config['dropout rate']
 
     common_model = Sequential()
-    common_model.add(l.Dense(input_dim * multiplier_common, input_shape=(2 * input_dim,), activation=activation))
+    common_model.add(l.Dense(input_dim * multiplier_common,
+                             input_shape=(multiplier * input_dim,), activation=activation))
     if config['use batch normalization']:
         common_model.add(l.BatchNormalization(momentum=momentum))
     for _ in range(layers_common):
@@ -151,7 +152,7 @@ def create_common_model(config, input_dim):
     return common_model
 
 
-def create_eviction_model(config, input_dim, common_model):
+def create_eviction_model(config, input_dim, common_model, multiplier=2):
     wing_size = config["wing size"]
     last_dim = wing_size * 2 + 1
 
@@ -164,7 +165,8 @@ def create_eviction_model(config, input_dim, common_model):
     if config['use common']:
         model_eviction.add(common_model)
     else:
-        model_eviction.add(l.Dense(input_dim * multiplier_each, input_shape=(2 * input_dim,), activation=activation))
+        model_eviction.add(l.Dense(input_dim * multiplier_each,
+                                   input_shape=(multiplier * input_dim,), activation=activation))
         if config['use batch normalization']:
             model_eviction.add(l.BatchNormalization(momentum=momentum))
 
@@ -201,8 +203,8 @@ def compile_model(model, config, mtype):
         lr = config['admission lr']
     assert lr is not None
     optimizer = Adam(lr=lr)
-    loss = 'categorical_crossentropy'
-    metrics = ['accuracy']
+    loss = 'mse'
+    metrics = ['mse']
     if config['mc']:
         loss = 'mse'
         metrics = ['mse']
@@ -210,7 +212,7 @@ def compile_model(model, config, mtype):
     return model
 
 
-def create_admission_model(config, input_dim, common_model):
+def create_admission_model(config, input_dim, common_model, multiplier=2):
 
     dropout_rate = config['dropout rate']
 
@@ -223,19 +225,19 @@ def create_admission_model(config, input_dim, common_model):
     if not config['use common']:
         if use_discretization:
             lsz = 10
-            print input_dim
             initial_values = [np.random.uniform(-3, 3, lsz) for a, b in config['init vals']]
             initial_values += initial_values
             initial_values = np.array(initial_values)
             initial_sigmas = [np.random.uniform(0.1, 0.3, lsz) for a, b in config['init vals']]
             initial_sigmas += initial_sigmas
             initial_sigmas = np.array(initial_sigmas)
-            model_admission.add(DiscretizationLayer(lsz, initial_values, initial_sigmas, input_shape=(2 * input_dim,)))
+            model_admission.add(DiscretizationLayer(lsz, initial_values, initial_sigmas,
+                                                    input_shape=(multiplier * input_dim,)))
             model_admission.add(l.Flatten())
             input_dim *= lsz
         else:
             model_admission.add(
-                l.Dense(input_dim * multiplier_each, input_shape=(2 * input_dim,), activation=activation))
+                l.Dense(input_dim * multiplier_each, input_shape=(multiplier * input_dim,), activation=activation))
         if config['use batch normalization']:
             model_admission.add(l.BatchNormalization())
     else:
@@ -265,14 +267,14 @@ def create_admission_model(config, input_dim, common_model):
     return model_admission
 
 
-def create_models(config, input_dim):
+def create_models(config, input_dim, multiplier=2):
     wing_size = config["wing size"]
     last_dim = wing_size * 2 + 1
 
     if config['use common']:
-        common_model = create_common_model(config, input_dim)
+        common_model = create_common_model(config, input_dim, multiplier)
     else:
         common_model = None
-    model_admission = create_admission_model(config, input_dim, common_model)
-    model_eviction = create_eviction_model(config, input_dim, common_model)
+    model_admission = create_admission_model(config, input_dim, common_model, multiplier)
+    model_eviction = create_eviction_model(config, input_dim, common_model, multiplier)
     return model_admission, model_eviction, common_model, last_dim
