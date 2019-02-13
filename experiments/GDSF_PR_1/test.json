@@ -5,7 +5,7 @@
 
 	"drop keys": true,
 
-	"algorithm type": [["ML-GDSF", "7_1_512M_RF"]],
+	"algorithm type": [["ML-GDSF", "GDSF_PR_1"]],
 
 	"check size": [1024],
 
