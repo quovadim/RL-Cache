@@ -5,11 +5,11 @@
 
 	"drop keys": true,
 
-	"algorithm type": [["ML-GDSF", "test_exp"]],
+	"algorithm type": [["ML-GDSF", "7_1_1G_SDL"]],
 
-	"check size": [256],
+	"check size": [1024],
 
-	"min size": 128,
+	"min size": 1024,
 	"max size": 3,
 	"step": 2,
 

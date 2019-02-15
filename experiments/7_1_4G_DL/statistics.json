@@ -1,7 +1,7 @@
 {
   "statistics": "statistics/china_statistics_15M",
   "warmup": 1000000,
-  "split step": 10,
+  "split step": 15,
 
   "normalization limit": 3,
   "bias": 1,
@@ -13,5 +13,10 @@
 
   "lambda": 0.99995394935,
 
-  "pure mode": false
+  "pure mode": false,
+
+  "usable names": ["log time recency",
+      "log request recency",
+      "log size",
+      "log frequency"]
 }

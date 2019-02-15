@@ -22,7 +22,7 @@ using std::endl;
 double FeatureCollector::get_packet_rating(Packet* packet) {
 	logical_time += 1;
 
-	uint64_t period = 3600;
+	uint64_t period = 7200;
 
 	time_sequence.push_back(packet->timestamp);
 	id_sequence.push_back(packet->id);
@@ -47,7 +47,7 @@ double FeatureCollector::get_packet_rating(Packet* packet) {
 	uint64_t time_old = time_sequence.front();
 	uint64_t id_to_remove = id_sequence.front();
 
-	while (time_old - packet->timestamp > period) {
+	while (time_old - packet->timestamp > period && time_sequence.size() >= 100000) {
 
 		meetings[id_to_remove]--;
 		if (meetings[id_to_remove] == 0) {

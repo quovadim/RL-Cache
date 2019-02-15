@@ -18,7 +18,7 @@ void FeatureCollector::update_packet_state(Packet* packet) {
 	logical_time += 1;
 	real_time = packet->timestamp;
 
-	uint64_t period = 3600;
+	uint64_t period = 7200;
 
 	time_sequence.push_back(real_time);
 	id_sequence.push_back(packet->id);
@@ -30,7 +30,7 @@ void FeatureCollector::update_packet_state(Packet* packet) {
 	uint64_t time_old = time_sequence.front();
 	uint64_t id_to_remove = id_sequence.front();
 
-	while (real_time - time_old > period) {
+	while ((real_time - time_old > period) && (time_sequence.size() >= 100000)) {
 
 		observations[id_to_remove]--;
 		if (observations[id_to_remove] == 0) {

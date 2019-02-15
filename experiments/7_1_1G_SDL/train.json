@@ -1,48 +1,48 @@
 {
-	"data": "china",
+	"data": "downloads",
 
-	"cache size": 512,
+	"cache size": 1024,
 
 	"target": "ML-GDSF",
 
-	"batch size": 2048,
+	"batch size": 4096,
 
 	"seed": 63,
 
 	"session configuration":
 	{
-		"collect discounted": true,
+		"collect discounted": false,
 		"change": true,
 		"change mode": "random",
 		"seed": 45,
 		"initial gamma": 1.0,
-		"gamma": 0.01,
+		"gamma": 0.0001,
 		"alpha": 0,
 		"use hr": true,
 		"metric type": "correlated"
 	},
 
-	"samples": 500,
-	"max samples": 300,
+	"samples": 1500,
+	"max samples": 3000,
 
 	"percentile admission": 90,
 	"percentile eviction": 90,
 
 	"epochs": 1,
-	"warmup": 200000,
+	"warmup": 500000,
 	"runs": 500,
 	"duplications": 20,
-	"refresh period": 1,
-	"repetitions": 2,
+	"refresh period": 10,
+	"repetitions": 1,
 	"drop": false,
-	"store period": 2,
-	"overlap": 750,
-	"period": 100000,
+	"store period": 3,
+	"overlap": 0,
+	"period": 10000,
 
 	"refresh policy": "monotonic",
 	"refresh value": 0,
 
-	"algorithms": ["AL-GDSF", "SH-LRU"],
+	"algorithms": ["AL-GDSF", "AL-LRU"],
 
 	"iterative": false,
 	"start iteration": "E",

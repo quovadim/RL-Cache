@@ -1,0 +1,27 @@
+{
+  "statistics": "statistics/statistics_downloads",
+  "warmup": 1000000,
+  "split step": 3,
+
+  "normalization limit": 3,
+  "bias": 1,
+
+  "save": true,
+  "load": true,
+
+  "show stat": false,
+
+  "lambda": 0.99995394935,
+
+  "pure mode": false,
+
+  "usable names": [
+    "log time recency",
+    "log request recency",
+    "log size",
+    "log frequency",
+    "time recency",
+    "request recency",
+    "size",
+    "frequency"]
+}

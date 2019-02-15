@@ -8,8 +8,8 @@ import sys
 
 def iterate_dataset(filelist):
     for filename in sorted(filelist):
-        local_frame = pd.read_csv(filename, index_col=False, delimiter=' ', names=['timestamp', 'id', 'size',
-                                                                                   'response'])
+        print filename
+        local_frame = pd.read_csv(filename, index_col=False, delimiter=' ', names=['timestamp', 'id', 'size'])
         yield filename, local_frame[['timestamp', 'id', 'size']]
 
 

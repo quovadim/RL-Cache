@@ -816,7 +816,7 @@ def generate_session_continious(
     lactions_adm = []
 
     np.random.seed()
-    #random.seed()
+    random.seed()
     #np.random.seed(seed)
     #random.seed(seed)
 
@@ -870,7 +870,7 @@ def generate_session_continious(
 
     for i in range(len(rows)):
 
-        if decorrelated_metric or (config['collect discounted'] and exchanged) or full_step:
+        if decorrelated_metric or (config['collect discounted'] and (exchanged or full_step)):
             multiplier *= gamma
 
         hit = algorithm.decide(rows[i], eviction_decisions[i], admission_decisions[i])

@@ -163,6 +163,7 @@ for key in HR_data['performance'].keys():
 
 for alpha in performances.keys():
     for sv in performances[alpha].keys():
+        print '\033[92m--------------------------------------------\033[0m'
         for key in performances[alpha][sv].keys():
             print alpha, key, performances[alpha][sv][key]
 

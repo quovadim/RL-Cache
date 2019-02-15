@@ -81,7 +81,7 @@ def collect_features(output_filename, t_max, filenames):
             feature_matrix.append(np.asarray(data))
             if (counter != 0 and counter % 5000 == 0) or counter == t_max:
                 d = featurer.feature_num
-                str_formatted = ' '.join(['{:s}: \033[1m{:^6.4f}\033[0m' for _ in range(d)])
+                str_formatted = ' '.join(['{:s}: \033[1m{:^5.3f}\033[0m' for _ in range(d)])
                 str_formatted = '\033[1m{:d}K\033[0m ' + str_formatted
                 mean_list = summary / counter
                 name_list = [shorten_name(item) for item in featurer.names]
@@ -142,8 +142,10 @@ class PacketFeaturer:
         'frequency': lambda x, l, r: float(x['number of observations']) / float(1 + l),
         'number of observations': lambda x, l, r: float(x['number of observations']),
         'size': lambda x, l, r: float(x['size']),
-        'recency': lambda x, l, r: float(r) - float(x['last appearance']),
-        'exponential recency': lambda x, l, r: float(x['exponential logical time'])
+        'time recency': lambda x, l, r: float(r) - float(x['last appearance']),
+        'exp time recency': lambda x, l, r: float(x['exponential recency']),
+        'request recency': lambda x, l, r: float(l - x['logical time']),
+        'exp request recency': lambda x, l, r: float(x['exponential logical time'])
     }
 
     ml_feature_names = feature_extractors.keys()

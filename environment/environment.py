@@ -300,9 +300,9 @@ def train(config, load_admission, load_eviction, n_threads=10, verbose=False, sh
         config['train history'] = open(config['train history'], 'w')
         logging = True
 
-    while iteration <= runs and duplication != 0:
+    while duplication != 0:
 
-        if iteration > runs:
+        if iteration >= runs:
             iteration = 0
             refresh_value = config['refresh value']
             warming_to_required_state = False
