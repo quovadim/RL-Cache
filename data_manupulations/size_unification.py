@@ -4,28 +4,6 @@ from os import listdir
 from os.path import isfile, join
 import argparse
 import sys
-from tqdm import tqdm
-import numpy as np
-
-
-def merge_dicts(dict1, dict2):
-    merged_dict = {}
-    for key in tqdm(set(dict1).union(dict2)):
-        size_dict_1 = dict1.get(key, {})
-        size_dict_2 = dict2.get(key, {})
-        size_merged_dict = dict((k, size_dict_2.get(k, 0) + size_dict_1.get(k, 0))
-                                for k in set(size_dict_1).union(size_dict_2))
-        merged_dict[key] = size_merged_dict
-    return merged_dict
-
-
-def convert_to_median(source_dict):
-    result = {}
-    for key in tqdm(source_dict.keys()):
-        size_distribution_dict = source_dict[key]
-        median_array = sum([[key] * size_distribution_dict[key] for key in size_distribution_dict.keys()], [])
-        result[key] = np.median(median_array)
-    return result
 
 
 def iterate_dataset(filelist):
