@@ -73,22 +73,18 @@ if args.load is None:
         local_size_df.reset_index(inplace=True)
         local_size_df = local_size_df.rename(columns={'id': 'id', 'size': 'aggregated size'})
 
-        if size_mapping is None:
-            size_mapping = local_size_df
-        else:
-            print 'Merging sizes'
-            size_mapping = pd.concat([size_mapping, local_size_df])
-            size_mapping = size_mapping.groupby('id').sum()
-            size_mapping.reset_index(inplace=True)
-
         local_counts_df = frame.groupby('id').count()
         local_counts_df.reset_index(inplace=True)
         local_counts_df = local_counts_df.rename(columns={'id': 'id', 'size': 'counts'})
 
-        if counts_mapping is None:
+        if size_mapping is None:
+            size_mapping = local_size_df
             counts_mapping = local_counts_df
         else:
-            print 'Merging counts'
+            size_mapping = pd.concat([size_mapping, local_size_df])
+            size_mapping = size_mapping.groupby('id').sum()
+            size_mapping.reset_index(inplace=True)
+
             counts_mapping = pd.concat([counts_mapping, local_counts_df])
             counts_mapping = counts_mapping.groupby('id').sum()
             counts_mapping.reset_index(inplace=True)
@@ -129,7 +125,7 @@ counter = 0
 total_lines = 0
 for filename, frame in iterate_dataset(filelist):
     frame = frame.merge(size_mapping, left_on='id', right_on='id', how='left')
-    frame['size'] = frame[["size_x", "size_y"]].max(axis=1)
+    frame['size'] = frame["size_y"]
     frame = frame[['timestamp', 'id', 'size']]
     total_lines += len(frame)
     sys.stdout.write('\rMerge {:d}/{:d} lines: {:d}M file {:s}'.format(
