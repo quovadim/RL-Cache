@@ -8,8 +8,24 @@ from tqdm import tqdm
 import numpy as np
 
 
-def merge_dicts(dol1, dol2):
-    return dict((k, dol1.get(k, []) + dol2.get(k, [])) for k in tqdm(set(dol1).union(dol2)))
+def merge_dicts(dict1, dict2):
+    merged_dict = {}
+    for key in tqdm(set(dict1).union(dict2)):
+        size_dict_1 = dict1.get(key, {})
+        size_dict_2 = dict2.get(key, {})
+        size_merged_dict = dict((k, size_dict_2.get(k, 0) + size_dict_1.get(k, 0))
+                                for k in set(size_dict_1).union(size_dict_2))
+        merged_dict[key] = size_merged_dict
+    return merged_dict
+
+
+def convert_to_median(source_dict):
+    result = {}
+    for key in tqdm(source_dict.keys()):
+        size_distribution_dict = source_dict[key]
+        median_array = sum([[key] * size_distribution_dict[key] for key in size_distribution_dict.keys()], [])
+        result[key] = np.median(median_array)
+    return result
 
 
 def iterate_dataset(filelist):
@@ -46,31 +62,37 @@ if args.load is None:
         frame.drop(columns=['timestamp'], inplace=True)
         total_lines += len(frame)
 
-        print 'Doing {:d}/{:d}, lines: {:d}M, file {:s}'.format(1 + counter, len(filelist), int(total_lines/1e6), filename)
+        print 'Doing {:d}/{:d}, lines: {:d}M, file {:s}'.format(1 + counter, len(filelist), int(total_lines/1e6),
+                                                                filename)
 
         print 'Grouping...'
         frame = frame.groupby('id')
 
         print 'Collecting...'
-        frame_unique = [(key, list(frame.groups[key])) for key in tqdm(frame.groups.keys())]
-        local_size_dict = dict(frame_unique)
+        local_size_dict = {}
+        for key in tqdm(frame.groups.keys()):
+            values, counts = np.unique(frame.groups[key], return_counts=True)
+            values, counts = list(values), list(counts)
+            local_size_dict[key] = dict(zip(values, counts))
 
         print 'Merging...'
         size_dict = merge_dicts(size_dict, local_size_dict)
 
+        if counter >= 5:
+            break
+
         counter += 1
 
-    print ''
+    print 'Calculating sequence'
+    size_dict_aggregated = convert_to_median(size_dict)
+
+    print 'Creating data frame'
+    size_mapping = pd.DataFrame(size_dict.items(), columns=['id', 'size'])
+
     print 'Collected'
 else:
     size_mapping = pd.read_csv(args.load)
     print 'Mapping loaded from', args.load
-
-print 'Calculating sequence'
-size_dict_aggregated = dict((key, np.median(size_dict[key])) for key in tqdm(size_dict.keys()))
-
-print 'Creating data frame'
-size_mapping = pd.DataFrame(size_dict.items(), columns=['id', 'size'])
 
 if args.save is not None:
     if args.load is not None:
