@@ -154,7 +154,7 @@ class PacketFeaturer:
 
     feature_types = [int, int, int, int, int, int, float, float, float, float, float]
 
-    def __init__(self, config, verbose=False):
+    def __init__(self, config, verbose=True):
         self.logical_time = 0
         self.real_time = 0
         self.memory_vector = None

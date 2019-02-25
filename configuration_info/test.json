@@ -20,62 +20,62 @@
 		"default": false
 	},
 
-	"algorithm type":  {
+	"algorithm type": {
 		"interval": null,
 		"recommendation": null,
 		"required": true,
 		"default": null
 	},
 
-	"check size":  {
+	"check size": {
 		"interval": null,
 		"recommendation": null,
 		"required": true,
 		"default": null
 	},
 
-	"min size":  {
+	"min size": {
 		"interval": [0, null],
 		"recommendation": [512, null],
 		"required": false,
 		"default": 512
 	},
 
-	"max size":  {
-		"interval": [1, null],
+	"max size": {
+		"interval": [0, null],
 		"recommendation": null,
 		"required": false,
 		"default": 7
 	},
-	"step":  {
+	"step": {
 		"interval": [1, null],
 		"recommendation": [2, 3],
 		"required": false,
 		"default": 2
 	},
 
-	"period":  {
+	"period": {
 		"interval": [0, null],
 		"recommendation": [150, null],
 		"required": false,
 		"default": 300
 	},
 
-	"reset":  {
+	"reset": {
 		"interval": null,
 		"recommendation": null,
 		"required": false,
 		"default": true
 	},
 
-	"alpha":  {
+	"alpha": {
 		"interval": null,
 		"recommendation": null,
 		"required": false,
 		"default": [0, 1]
 	},
 
-    "warmup":  {
+    "warmup": {
 		"interval": [0, null],
 		"recommendation": [100000, null],
 		"required": false,

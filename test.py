@@ -5,6 +5,7 @@ parser.add_argument("experiment", type=str, help="Name of the experiment")
 parser.add_argument("test", type=str, help="Name of the test")
 parser.add_argument('-g', '--gpu', action='store_true', help="Use GPU for computations")
 parser.add_argument('-l', '--load', action='store_true', help="Load from dump")
+parser.add_argument('-r', '--request', action='store_true', help="Load from dump")
 parser.add_argument('-m', '--memopt', type=int, default=-1, help="Memory optimization period")
 
 args = parser.parse_args()
@@ -28,4 +29,5 @@ if configuration is None:
 if not os.path.exists(configuration["output folder"]):
     os.makedirs(configuration["output folder"])
 
-test(configuration, configuration["output folder"] + '/0', get_test_dump_name(args.experiment, args.test), args.load)
+test(configuration, configuration["output folder"] + '/0',
+     get_test_dump_name(args.experiment, args.test), args.load, args.request)

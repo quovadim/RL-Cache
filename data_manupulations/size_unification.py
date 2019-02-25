@@ -4,6 +4,12 @@ from os import listdir
 from os.path import isfile, join
 import argparse
 import sys
+from tqdm import tqdm
+import numpy as np
+
+
+def merge_dicts(dol1, dol2):
+    return dict((k, dol1.get(k, []) + dol2.get(k, [])) for k in tqdm(set(dol1).union(dol2)))
 
 
 def iterate_dataset(filelist):
@@ -32,30 +38,39 @@ end = len(filelist) if args.end is None else args.end
 
 filelist = filelist[begin:end]
 
-size_mapping = None
+size_dict = {}
 if args.load is None:
     counter = 0
     total_lines = 0
     for filename, frame in iterate_dataset(filelist):
         frame.drop(columns=['timestamp'], inplace=True)
         total_lines += len(frame)
-        sys.stdout.write('\rCollecting {:d}/{:d} lines: {:d}M file {:s}'.format(
-            1 + counter, len(filelist), int(total_lines/1e6), filename))
-        sys.stdout.flush()
+
+        print 'Doing {:d}/{:d}, lines: {:d}M, file {:s}'.format(1 + counter, len(filelist), int(total_lines/1e6), filename)
+
+        print 'Grouping...'
+        frame = frame.groupby('id')
+
+        print 'Collecting...'
+        frame_unique = [(key, list(frame.groups[key])) for key in tqdm(frame.groups.keys())]
+        local_size_dict = dict(frame_unique)
+
+        print 'Merging...'
+        size_dict = merge_dicts(size_dict, local_size_dict)
+
         counter += 1
-        if size_mapping is None:
-            frame = frame.groupby('id').max()
-            frame.reset_index(inplace=True)
-            size_mapping = frame
-        else:
-            size_mapping = pd.concat([size_mapping, frame])
-            size_mapping = size_mapping.groupby('id').max()
-            size_mapping.reset_index(inplace=True)
+
     print ''
     print 'Collected'
 else:
     size_mapping = pd.read_csv(args.load)
     print 'Mapping loaded from', args.load
+
+print 'Calculating sequence'
+size_dict_aggregated = dict((key, np.median(size_dict[key])) for key in tqdm(size_dict.keys()))
+
+print 'Creating data frame'
+size_mapping = pd.DataFrame(size_dict.items(), columns=['id', 'size'])
 
 if args.save is not None:
     if args.load is not None:

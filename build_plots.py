@@ -28,6 +28,7 @@ parser.add_argument('-c', '--correlation', action='store_true', help="Print corr
 parser.add_argument('-b', '--background', type=str, default=None, help='Background plot')
 
 parser.add_argument('-k', '--keys', type=str, default=None, help="Keys that should be into final graphs")
+parser.add_argument('-r', '--keys_remove', type=str, default=None, help="Keys that should not be in final graph")
 
 args = parser.parse_args()
 
@@ -43,6 +44,13 @@ if args.keys is not None:
     keys = sorted(args.keys.split(' '))
 else:
     keys = []
+
+if args.keys_remove is not None:
+    removal_keys = sorted(args.keys_remove.split(' '))
+else:
+    removal_keys = []
+
+removal_keys = [item.split('&') for item in removal_keys]
 
 target_data = get_graphs_name('--'.join(experiments), args.dataset) + '/'
 
@@ -134,6 +142,16 @@ for key in data['performance'].keys():
             good_key = True
             break
     if not good_key:
+        keys_to_drop.append(key)
+
+for key in data['performance'].keys():
+    remove_required = removal_keys != []
+    for key_chain in removal_keys:
+        result = True
+        for rkey in key_chain:
+            result = result and (rkey in key)
+        remove_required = result
+    if remove_required:
         keys_to_drop.append(key)
 
 for key in keys_to_drop:

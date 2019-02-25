@@ -19,7 +19,7 @@ def fsize(size):
     return result[:len(result) - 1] + ' ' + result[len(result) - 1]
 
 
-def test(config, o_file_generator, dump_filename, load):
+def test(config, o_file_generator, dump_filename, load, request_measure=False):
     current_rows = []
     file_counter = 0
 
@@ -101,7 +101,8 @@ def test(config, o_file_generator, dump_filename, load):
             start_time = row['timestamp']
 
         if (needs_warmup and len(current_rows) == warmup_length) \
-                or (not needs_warmup and row['timestamp'] - start_time >= config['period']):
+                or (not request_measure and (not needs_warmup and row['timestamp'] - start_time >= config['period'])) \
+                or (request_measure and (not needs_warmup and len(current_rows) == config['period'] * 100)):
             start_time = row['timestamp']
 
             feature_sets = []
