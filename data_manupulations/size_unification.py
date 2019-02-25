@@ -54,7 +54,8 @@ end = len(filelist) if args.end is None else args.end
 
 filelist = filelist[begin:end]
 
-size_dict = {}
+size_mapping = None
+counts_mapping = None
 if args.load is None:
     counter = 0
     total_lines = 0
@@ -62,32 +63,40 @@ if args.load is None:
         frame.drop(columns=['timestamp'], inplace=True)
         total_lines += len(frame)
 
-        print 'Doing {:d}/{:d}, lines: {:d}M, file {:s}'.format(1 + counter, len(filelist), int(total_lines/1e6),
-                                                                filename)
-
-        print 'Grouping...'
-        frame = frame.groupby('id')
-
-        print 'Collecting...'
-        local_size_dict = {}
-        for key in tqdm(frame.groups.keys()):
-            values, counts = np.unique(frame.groups[key], return_counts=True)
-            values, counts = list(values), list(counts)
-            local_size_dict[key] = dict(zip(values, counts))
-
-        print 'Merging...'
-        size_dict = merge_dicts(size_dict, local_size_dict)
-
-        if counter >= 5:
-            break
+        sys.stdout.write('\rCollecting {:d}/{:d} lines: {:d}M file {:s}'.format(
+            1 + counter, len(filelist), int(total_lines / 1e6), filename))
+        sys.stdout.flush()
 
         counter += 1
+        print ''
+        local_size_df = frame.groupby('id').sum()
+        local_size_df.reset_index(inplace=True)
+        local_size_df = local_size_df.rename(columns={'id': 'id', 'size': 'aggregated size'})
 
-    print 'Calculating sequence'
-    size_dict_aggregated = convert_to_median(size_dict)
+        if size_mapping is None:
+            size_mapping = local_size_df
+        else:
+            print 'Merging sizes'
+            size_mapping = pd.concat([size_mapping, local_size_df])
+            size_mapping = size_mapping.groupby('id').sum()
+            size_mapping.reset_index(inplace=True)
 
-    print 'Creating data frame'
-    size_mapping = pd.DataFrame(size_dict.items(), columns=['id', 'size'])
+        local_counts_df = frame.groupby('id').count()
+        local_counts_df.reset_index(inplace=True)
+        local_counts_df = local_counts_df.rename(columns={'id': 'id', 'size': 'counts'})
+
+        if counts_mapping is None:
+            counts_mapping = local_counts_df
+        else:
+            print 'Merging counts'
+            counts_mapping = pd.concat([counts_mapping, local_counts_df])
+            counts_mapping = counts_mapping.groupby('id').sum()
+            counts_mapping.reset_index(inplace=True)
+
+    size_mapping = size_mapping.merge(counts_mapping, left_on='id', right_on='id', how='outer')
+    size_mapping['size'] = size_mapping['aggregated size'] / size_mapping['counts']
+    size_mapping['size'] = size_mapping['size'].astype(int)
+    size_mapping = size_mapping[['id', 'size']]
 
     print 'Collected'
 else:
