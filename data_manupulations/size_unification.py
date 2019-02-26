@@ -46,7 +46,6 @@ if args.load is None:
         sys.stdout.flush()
 
         counter += 1
-        print ''
         local_size_df = frame
         local_size_df['size reversed'] = 1. / (1e-7 + frame['size'])
         local_size_df = local_size_df[['id', 'size reversed']]
@@ -76,8 +75,7 @@ if args.load is None:
             counts_mapping.reset_index(inplace=True)
 
     size_mapping = size_mapping.merge(counts_mapping, left_on='id', right_on='id', how='outer')
-    size_mapping['size'] = size_mapping['counts'] / size_mapping['aggregated size']
-    size_mapping['size'] = 1 / (1e-7 + size_mapping['size'])
+    size_mapping['size'] = size_mapping['counts'].astype(float) / size_mapping['aggregated size']
     size_mapping['size'] = size_mapping['size'].astype(int)
     size_mapping = size_mapping[['id', 'size']]
 
