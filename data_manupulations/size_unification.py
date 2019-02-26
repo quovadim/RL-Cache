@@ -47,9 +47,17 @@ if args.load is None:
 
         counter += 1
         print ''
-        local_size_df = frame.groupby('id').sum()
+        local_size_df = frame
+        local_size_df['size reversed'] = 1. / (1e-7 + frame['size'])
+        local_size_df = local_size_df[['id', 'size reversed']]
+        local_size_df = local_size_df.groupby('id').sum()
         local_size_df.reset_index(inplace=True)
-        local_size_df = local_size_df.rename(columns={'id': 'id', 'size': 'aggregated size'})
+        local_size_df = local_size_df.rename(columns={'id': 'id', 'size reversed': 'aggregated size'})
+
+        try:
+            frame.drop(columns=['size reversed'], inplace=True)
+        except:
+            pass
 
         local_counts_df = frame.groupby('id').count()
         local_counts_df.reset_index(inplace=True)
@@ -68,7 +76,8 @@ if args.load is None:
             counts_mapping.reset_index(inplace=True)
 
     size_mapping = size_mapping.merge(counts_mapping, left_on='id', right_on='id', how='outer')
-    size_mapping['size'] = size_mapping['aggregated size'] / size_mapping['counts']
+    size_mapping['size'] = size_mapping['counts'] / size_mapping['aggregated size']
+    size_mapping['size'] = 1 / (1e-7 + size_mapping['size'])
     size_mapping['size'] = size_mapping['size'].astype(int)
     size_mapping = size_mapping[['id', 'size']]
 
