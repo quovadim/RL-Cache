@@ -1,11 +1,11 @@
 {
-	"data": "china",
+	"data": "downloads",
 
-	"cache size": 512,
+	"cache size": 64,
 
-	"target": "ML-LRU",
+	"target": "ML-GDSF",
 
-	"batch size": 4096,
+	"batch size": 2048,
 
 	"seed": 63,
 
@@ -22,7 +22,7 @@
 		"metric type": "correlated"
 	},
 
-	"samples": 500,
+	"samples": 75,
 	"max samples": 300,
 
 	"percentile admission": 90,

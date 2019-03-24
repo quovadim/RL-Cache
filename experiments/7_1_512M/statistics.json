@@ -1,5 +1,5 @@
 {
-  "statistics": "statistics/china_statistics_15M",
+  "statistics": "statistics/statistics_downloads",
   "warmup": 1000000,
   "split step": 10,
 
@@ -11,5 +11,7 @@
 
   "show stat": false,
 
-  "lambda": 0.99995394935
+  "lambda": 0.99995394935,
+
+  "pure mode": false
 }

@@ -7,12 +7,14 @@
   "layers common": 3,
 
   "multiplier each": 10,
-  "layers each": 5,
+  "layers each": 1,
 
   "use batch normalization": false,
 
-  "eviction lr": 1e-4,
-  "admission lr": 1e-4,
+  "eviction lr": 1e-3,
+  "admission lr": 1e-3,
 
-  "mc": false
+  "mc": false,
+
+  "use discretization": true
 }

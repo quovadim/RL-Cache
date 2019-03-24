@@ -5,7 +5,7 @@
 
 	"target": "ML-GDSF",
 
-	"batch size": 4096,
+	"batch size": 1024,
 
 	"seed": 63,
 

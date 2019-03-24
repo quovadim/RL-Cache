@@ -16,6 +16,7 @@
   "pure mode": false,
 
   "usable names": [
+    "log time recency",
     "log request recency",
     "log size",
     "log frequency"]

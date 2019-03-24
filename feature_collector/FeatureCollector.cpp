@@ -18,7 +18,7 @@ void FeatureCollector::update_packet_state(Packet* packet) {
 	logical_time += 1;
 	real_time = packet->timestamp;
 
-	uint64_t period = 7200;
+	uint64_t period = 3600 * 12;
 
 	time_sequence.push_back(real_time);
 	id_sequence.push_back(packet->id);

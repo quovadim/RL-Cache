@@ -3,7 +3,7 @@
 
 	"cache size": 1024,
 
-	"target": "ML-GDSF",
+	"target": "ML-LRU",
 
 	"batch size": 4096,
 
@@ -17,7 +17,7 @@
 		"seed": 45,
 		"initial gamma": 1.0,
 		"gamma": 0.001,
-		"alpha": 0,
+		"alpha": 1,
 		"use hr": true,
 		"metric type": "correlated"
 	},

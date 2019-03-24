@@ -7,8 +7,10 @@ from keras.layers import Layer
 from keras.regularizers import Regularizer
 import numpy as np
 
-from keras.initializers import RandomUniform, Constant
+from keras.initializers import RandomUniform, Constant, TruncatedNormal, Zeros
 from keras.constraints import NonNeg, MinMaxNorm
+
+import tensorflow as tf
 
 from math import pi
 
@@ -16,115 +18,58 @@ activation = 'elu'
 momentum = 0.9
 
 
-class DiscretizationLayer(Layer):
-    def __init__(self, output_dim, init_means, init_sigmas, distribution='Normal', normalization='none', **kwargs):
+class DiscretizationLayerWide(Layer):
+    def __init__(self, output_dim, **kwargs):
         self.output_dim = output_dim
-        self.init_means = init_means
-        self.init_sigmas = init_sigmas
-        self.distribution = distribution
-        self.normalization = normalization
-        super(DiscretizationLayer, self).__init__(**kwargs)
+        super(DiscretizationLayerWide, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        super(DiscretizationLayer, self).build(input_shape)
-        self.kernel = self.add_weight(name='kernel',
-                                      shape=(input_shape[1], self.output_dim),
-                                      initializer=Constant(self.init_means),
-                                      trainable=True)
+        u = -6
+        l = 6
+        initer = [np.linspace(l, u, self.output_dim).reshape(1, -1) for _ in range(input_shape[1])]
+        initer = np.concatenate(initer, axis=0)
+        init = Constant(initer)
 
-        self.sigmas = self.add_weight(name='sigma',
+        bias_initializer = Constant(0)
+        width_val = 3. * float(u - l) / input_shape[1]
+        super(DiscretizationLayerWide, self).build(input_shape)
+        self.bins = self.add_weight(name='bins',
+                                    shape=(input_shape[1], self.output_dim),
+                                    initializer=init,
+                                    trainable=True)
+
+        self.widths = self.add_weight(name='widths',
                                       shape=(input_shape[1], self.output_dim),
-                                      initializer=Constant(self.init_sigmas),
+                                      initializer=TruncatedNormal(width_val, width_val / 4),
                                       constraint=NonNeg(),
                                       trainable=True)
 
-        if self.normalization == 'softmax':
-            self.temperature = self.add_weight(name='temperature',
-                                      shape=(input_shape[1], 1),
-                                      initializer=RandomUniform(0.5 - 1./input_shape[1], 0.5 + 1./input_shape[1]),
-                                      constraint=MinMaxNorm(min_value=1e-2, max_value=1, axis=0),
+        self.biases = self.add_weight(name='biases',
+                                      shape=(input_shape[1], self.output_dim,),
+                                      initializer=bias_initializer,
                                       trainable=True)
+
+        self.dense_weight = self.add_weight(name='w',
+                                            shape=(input_shape[1], self.output_dim),
+                                            initializer='glorot_uniform',
+                                            trainable=True)
+
+        self.dense_bias = self.add_weight(name='b',
+                                          shape=(input_shape[1],),
+                                          initializer=Zeros(),
+                                          trainable=True)
 
         self.built = True
 
     def call(self, inputs, **kwargs):
-        source_matrix = K.repeat(inputs, self.output_dim)
-
-        source_matrix = K.permute_dimensions(source_matrix, (0, 2, 1))
-
-        if self.distribution == 'Laplace':
-
-            laplace_distr = -1. * K.abs(source_matrix - self.kernel)
-
-            sigma_abs = K.abs(self.sigmas)
-            laplace_distr = K.exp(laplace_distr / (1e-5 + sigma_abs))
-
-            source_matrix = laplace_distr / (1e-5 + 2 * sigma_abs)
-
-        if self.distribution == 'Normal':
-
-            normal_distr = -1. * K.square(source_matrix - self.kernel)
-
-            sigma_square = self.sigmas * self.sigmas
-            normal_distr = K.exp(normal_distr / (1e-5 + 2 * sigma_square))
-
-            source_matrix = normal_distr / (1e-5 + K.sqrt(sigma_square * 2 * pi))
-
-        if self.distribution == 'Grumbel':
-            self.sigmas += 0.5
-            z = (source_matrix - self.kernel) / (1e-5 + self.sigmas)
-            exp_z = K.exp(z)
-            z = -1. * (z + exp_z)
-            z = K.exp(z) / (1e-5 + self.sigmas)
-            source_matrix = z
-
-        normed = source_matrix
-
-        if self.normalization == 'softmax':
-            normed = normed / self.temperature
-            normed = K.softmax(normed, axis=2)
-        if self.normalization == 'l1':
-            normed += 1e-5
-            normed = normed / (1e-5 + K.sum(K.abs(normed), axis=2, keepdims=True))
-
-        return normed
-
-    def compute_output_shape(self, input_shape):
-        return (input_shape[0], input_shape[1], self.output_dim,)
-
-    def get_config(self):
-        config = {'init_means': self.init_means,
-                  'init_sigmas': self.init_sigmas,
-                  'normalization': self.normalization,
-                  'distribution': self.distribution}
-        base_config = super(DiscretizationLayer, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-
-class EntropyRegularizer(Regularizer):
-    def __init__(self, p=0.):
-        self.p = K.cast_to_floatx(p)
-
-    def __call__(self, x):
-        log_data = K.log(1e-10 + K.abs(x))
-        entropy = K.abs(K.sum(log_data * K.abs(x), axis=2))
-        return self.p * K.mean(entropy)
-
-    def get_config(self):
-        return {'p': float(self.p)}
-
-
-class EntropyRegularization(Layer):
-    def __init__(self, p=0., **kwargs):
-        super(EntropyRegularization, self).__init__(**kwargs)
-        self.supports_masking = True
-        self.p = p
-        self.activity_regularizer = EntropyRegularizer(self.p)
-
-    def get_config(self):
-        config = {'p': self.p}
-        base_config = super(EntropyRegularization, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
+        input = tf.expand_dims(inputs, -1)
+        bins = self.biases - tf.abs(input - self.bins) * self.widths
+        bins = tf.nn.leaky_relu(bins)
+        bins2prob = tf.nn.softmax(bins)
+        x = bins2prob * self.dense_weight
+        x = tf.reduce_sum(x, axis=2) + self.dense_bias
+        x = tf.nn.tanh(x)
+        return x
 
     def compute_output_shape(self, input_shape):
         return input_shape
@@ -224,17 +169,9 @@ def create_admission_model(config, input_dim, common_model, multiplier=2):
     model_admission = Sequential()
     if not config['use common']:
         if use_discretization:
-            lsz = 10
-            initial_values = [np.random.uniform(-3, 3, lsz) for a, b in config['init vals']]
-            initial_values += initial_values
-            initial_values = np.array(initial_values)
-            initial_sigmas = [np.random.uniform(0.1, 0.3, lsz) for a, b in config['init vals']]
-            initial_sigmas += initial_sigmas
-            initial_sigmas = np.array(initial_sigmas)
-            model_admission.add(DiscretizationLayer(lsz, initial_values, initial_sigmas,
-                                                    input_shape=(multiplier * input_dim,)))
-            model_admission.add(l.Flatten())
-            input_dim *= lsz
+            model_admission.add(DiscretizationLayerWide(200, input_shape=(multiplier * input_dim,)))
+            model_admission.add(l.BatchNormalization())
+            input_dim *= 10
         else:
             model_admission.add(
                 l.Dense(input_dim * multiplier_each, input_shape=(multiplier * input_dim,), activation=activation))

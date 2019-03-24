@@ -86,7 +86,7 @@ else:
 if args.save is not None:
     if args.load is not None:
         print 'You are saving loaded size mapping, it might be not the best idea'
-    size_mapping.to_csv(args.save)
+    size_mapping.to_csv(args.save, index=False)
     print 'Mapping saved to', args.save
 
 assert size_mapping is not None
