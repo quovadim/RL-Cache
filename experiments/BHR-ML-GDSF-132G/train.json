@@ -1,0 +1,56 @@
+{
+	"data": "!!",
+
+	"cache size": 131072,
+
+	"target": "ML-GDSF",
+
+	"batch size": 2048,
+
+	"seed": 63,
+
+	"session configuration":
+	{
+		"collect discounted": true,
+		"change": true,
+		"change mode": "random",
+		"seed": 45,
+		"initial gamma": 1.0,
+		"gamma": 0.01,
+		"alpha": 1,
+		"use hr": true,
+		"metric type": "correlated"
+	},
+
+	"samples": 250,
+	"max samples": 900,
+
+	"percentile admission": 80,
+	"percentile eviction": 80,
+
+	"epochs": 1,
+	"warmup": 500000,
+	"runs": 200,
+	"duplications": 500,
+	"refresh period": 2,
+	"repetitions": 2,
+	"drop": false,
+	"store period": 2,
+	"overlap": 550000,
+	"period": 600000,
+
+	"refresh policy": "monotonic",
+	"refresh value": 0,
+
+	"algorithms": ["AL-GDSF", "SH-GDSF"],
+
+	"iterative": false,
+	"start iteration": "E",
+
+	"IP:train admission": true,
+	"IP:train eviction": true,
+
+	"dump sessions": false,
+	"dump limit": 200,
+	"dump percentile": 75
+}

@@ -1,0 +1,22 @@
+{
+	"batch size": 2048,
+
+	"seed": 278,
+
+	"drop keys": true,
+
+	"algorithm type": [["ML-LRU", "BHR-ML-LRU-2G"]],
+
+	"check size": [2048],
+
+	"min size": 2048,
+	"max size": 2,
+	"step": 8,
+
+	"period": 300,
+	"reset": true,
+	"alpha": [1],
+
+
+    "warmup": 200000
+}
