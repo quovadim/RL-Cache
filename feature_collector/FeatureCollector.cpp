@@ -25,7 +25,7 @@ void FeatureCollector::update_packet_state(Packet* packet) {
 	if (observations.find(packet->id) != observations.end()) {
 		observations[packet->id]++;
 	} else {
-	observations.insert(pair<uint64_t, int>(packet->id, 1));
+	    observations.insert(pair<uint64_t, int>(packet->id, 1));
 	}
 	uint64_t time_old = time_sequence.front();
 	uint64_t id_to_remove = id_sequence.front();
