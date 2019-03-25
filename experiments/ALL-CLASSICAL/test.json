@@ -5,7 +5,7 @@
 
 	"drop keys": true,
 
-	"algorithm type": [["AL-GDSF", null], ["AL-LRU", null], ["AL-LFU", null]],
+	"algorithm type": [["AL-GDSF", null], ["AL-LRU", null], ["AL-LFU", null], ["AL-SLRU", null], ["AL-S4LRU", null]],
 
 	"check size": [2048],
 

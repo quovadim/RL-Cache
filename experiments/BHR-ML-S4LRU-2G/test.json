@@ -1,11 +1,11 @@
 {
-	"batch size": 4096,
+	"batch size": 2048,
 
 	"seed": 278,
 
 	"drop keys": true,
 
-	"algorithm type": [["SH-GDSF", null], ["SH-LRU", null], ["SH-LFU", null], ["SH-SLRU", null], ["SH-S4LRU", null]],
+	"algorithm type": [["ML-S4LRU", "BHR-ML-S4LRU-2G"]],
 
 	"check size": [2048],
 
@@ -15,7 +15,7 @@
 
 	"period": 300,
 	"reset": true,
-	"alpha": [0, 1],
+	"alpha": [1],
 
 
     "warmup": 200000

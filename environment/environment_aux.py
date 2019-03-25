@@ -3,6 +3,8 @@ from MLSim import MLSimulator
 from GDSim import GDSimulator
 from LRUSim import LRUSimulator
 from AdaptSizeSim import AdaptSizeSimulator
+from SLRUSim import SLRUSimulator
+from S4LRUSim import S4LRUSimulator
 
 import pickle
 from multiprocessing import Process, Queue
@@ -197,6 +199,14 @@ def name2class(name):
             class_type = LRUSimulator
         eviction_random = False
         eviction_index = 1
+    if name_eviction == 'S4LRU':
+        class_type = S4LRUSimulator
+        eviction_random = False
+        eviction_index = 1
+    if name_eviction == 'SLRU':
+        class_type = SLRUSimulator
+        eviction_random = False
+        eviction_index = 1
     if name_eviction == 'LFU':
         class_type = LRUSimulator
         eviction_random = False
@@ -310,7 +320,9 @@ def extreme_compress(name):
                          'RNG': 'R',
                          'DET': 'D',
                          'AS': 'T',
-                         'Oracle': 'O'}
+                         'Oracle': 'O',
+                         'S4LRU': 'S4',
+                         'SLRU': 'S2'}
     name_converted = [replacement_table[info['admission']], replacement_table[info['eviction']]]
     if info['operational mode'] != '':
         name_converted.append(replacement_table[info['operational mode']])

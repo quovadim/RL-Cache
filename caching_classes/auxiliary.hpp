@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Python.h>
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>

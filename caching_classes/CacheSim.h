@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Python.h>
 #include <map>
 #include <unordered_set>
@@ -35,8 +37,8 @@ public:
 
 	uint64_t refresh_period;
 
-	p::dict get_ratings();
-	void set_ratings(p::dict &_ratings);
+	virtual p::dict get_ratings();
+	virtual void set_ratings(p::dict &_ratings);
 
 	p::dict get_sizes();
 	void set_sizes(p::dict &_sizes);
