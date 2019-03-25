@@ -10,7 +10,7 @@
 	"check size": [2048],
 
 	"min size": 2048,
-	"max size": 2,
+	"max size": 1,
 	"step": 8,
 
 	"period": 300,

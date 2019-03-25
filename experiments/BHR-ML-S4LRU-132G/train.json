@@ -25,18 +25,18 @@
 	"samples": 250,
 	"max samples": 900,
 
-	"percentile admission": 80,
-	"percentile eviction": 80,
+	"percentile admission": 90,
+	"percentile eviction": 90,
 
 	"epochs": 1,
 	"warmup": 500000,
-	"runs": 200,
+	"runs": 25,
 	"duplications": 500,
-	"refresh period": 2,
+	"refresh period": 4,
 	"repetitions": 2,
 	"drop": false,
 	"store period": 2,
-	"overlap": 550000,
+	"overlap": 500000,
 	"period": 600000,
 
 	"refresh policy": "monotonic",

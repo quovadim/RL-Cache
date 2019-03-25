@@ -1,9 +1,9 @@
 {
-	"data": "!!",
+	"data": "china",
 
 	"cache size": 2048,
 
-	"target": "ML-S4LRU",
+	"target": "ML-LRU",
 
 	"batch size": 2048,
 
@@ -42,7 +42,7 @@
 	"refresh policy": "monotonic",
 	"refresh value": 0,
 
-	"algorithms": ["AL-S4LRU", "SH-S4LRU"],
+	"algorithms": ["AL-LRU", "SH-LRU", "AS-LRU"],
 
 	"iterative": false,
 	"start iteration": "E",

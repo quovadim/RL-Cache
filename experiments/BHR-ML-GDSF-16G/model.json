@@ -11,8 +11,8 @@
 
   "use batch normalization": false,
 
-  "eviction lr": 5e-4,
-  "admission lr": 5e-4,
+  "eviction lr": 1e-3,
+  "admission lr": 1e-3,
 
   "mc": false
 }
