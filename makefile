@@ -9,16 +9,25 @@ caching_clean:
 
 
 
-collector:	
+feature_collector:
 	$(MAKE) -C feature_collector all
 
-collector_clean:
+feature_collector_clean:
 	$(MAKE) -C feature_collector clean
-	
+
+reward_collector:
+	$(MAKE) -C reward_collector all
+
+reward_collector_clean:
+	$(MAKE) -C reward_collector clean
+
+
 all:
 	make caching
-	make collector
+	make feature_collector
+	make reward_collector
 
 clean:
 	make caching_clean
-	make collector_clean
+	make feature_collector_clean
+	make reward_collector_clean

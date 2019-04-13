@@ -3,7 +3,6 @@ from MLSim import MLSimulator
 from GDSim import GDSimulator
 from LRUSim import LRUSimulator
 from AdaptSizeSim import AdaptSizeSimulator
-from SLRUSim import SLRUSimulator
 from S4LRUSim import S4LRUSimulator
 
 import pickle
@@ -201,10 +200,6 @@ def name2class(name):
         eviction_index = 1
     if name_eviction == 'S4LRU':
         class_type = S4LRUSimulator
-        eviction_random = False
-        eviction_index = 1
-    if name_eviction == 'SLRU':
-        class_type = SLRUSimulator
         eviction_random = False
         eviction_index = 1
     if name_eviction == 'LFU':

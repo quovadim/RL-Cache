@@ -1,6 +1,6 @@
 {
-  "statistics": "statistics/china",
-  "warmup": 1000000,
+  "statistics": "statistics/example",
+  "warmup": 100000,
   "split step": 10,
 
   "normalization limit": 3,

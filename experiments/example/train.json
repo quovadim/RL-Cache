@@ -1,9 +1,9 @@
 {
-	"data": "!!",
+	"data": "example",
 
-	"cache size": 16384,
+	"cache size": 16,
 
-	"target": "ML-GDSF",
+	"target": "ML-LRU",
 
 	"batch size": 2048,
 
@@ -25,24 +25,24 @@
 	"samples": 250,
 	"max samples": 900,
 
-	"percentile admission": 80,
-	"percentile eviction": 80,
+	"percentile admission": 90,
+	"percentile eviction": 90,
 
 	"epochs": 1,
 	"warmup": 500000,
-	"runs": 200,
+	"runs": 25,
 	"duplications": 500,
-	"refresh period": 2,
+	"refresh period": 4,
 	"repetitions": 2,
 	"drop": false,
 	"store period": 2,
-	"overlap": 250000,
-	"period": 300000,
+	"overlap": 100000,
+	"period": 200000,
 
 	"refresh policy": "monotonic",
 	"refresh value": 0,
 
-	"algorithms": ["AL-GDSF", "SH-GDSF"],
+	"algorithms": ["AL-LRU", "SH-LRU", "AS-LRU"],
 
 	"iterative": false,
 	"start iteration": "E",
